@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 function cx(...xs: Array<string | false | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -22,6 +22,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [outImages, setOutImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [history, setHistory] = useState<
+    { id: string; createdAt: number; source: string; results: string[] }[]
+  >([]);
 
   const canGenerate = useMemo(
     () => Boolean(imageDataUrl && !generating),
@@ -49,7 +52,18 @@ export default function Home() {
       });
       const imgJson = await imgRes.json();
       if (!imgRes.ok) throw new Error(imgJson?.error || "Erreur images");
-      setOutImages(imgJson.images || []);
+      const images = (imgJson.images || []) as string[];
+      setOutImages(images);
+      const item = {
+        id: `${Date.now()}`,
+        createdAt: Date.now(),
+        source: imageDataUrl,
+        results: images,
+      };
+      setHistory((h) => [item, ...h].slice(0, 50));
+      try {
+        localStorage.setItem("vintedboost_last", JSON.stringify(item));
+      } catch {}
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg || "Erreur");
@@ -57,6 +71,25 @@ export default function Home() {
       setGenerating(false);
     }
   }
+
+  useEffect(() => {
+    try {
+      const rawHist = localStorage.getItem("vintedboost_history");
+      if (rawHist) setHistory(JSON.parse(rawHist));
+      const rawLast = localStorage.getItem("vintedboost_last");
+      if (rawLast) {
+        const last = JSON.parse(rawLast);
+        if (last?.source) setImageDataUrl(last.source);
+        if (Array.isArray(last?.results)) setOutImages(last.results);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("vintedboost_history", JSON.stringify(history));
+    } catch {}
+  }, [history]);
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white text-gray-900">
@@ -176,6 +209,73 @@ export default function Home() {
             )}
           </section>
         </div>
+
+        <section className="mt-6 rounded-2xl border border-gray-200 bg-white/70 backdrop-blur p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold">Historique</h2>
+            {history.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    try {
+                      const blob = new Blob([
+                        JSON.stringify(history, null, 2),
+                      ], { type: "application/json" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "vintedboost_history.json";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch {}
+                  }}
+                  className="text-xs rounded-md border border-gray-300 bg-white px-2 py-1 text-gray-700 hover:bg-gray-50"
+                >
+                  Exporter
+                </button>
+                <button
+                  onClick={() => setHistory([])}
+                  className="text-xs text-gray-500 hover:text-red-600"
+                >
+                  Effacer
+                </button>
+              </div>
+            )}
+          </div>
+          {history.length === 0 ? (
+            <div className="text-sm text-gray-500">
+              Aucune génération enregistrée pour l’instant.
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {history.map((h) => (
+                <button
+                  key={h.id}
+                  onClick={() => {
+                    setImageDataUrl(h.source);
+                    setOutImages(h.results || []);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="flex items-center gap-3 rounded-xl border border-gray-200 p-2 text-left hover:bg-gray-50"
+                >
+                  <img
+                    src={h.source}
+                    alt="source"
+                    className="h-16 w-16 shrink-0 rounded-md border object-contain"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">
+                      {new Date(h.createdAt).toLocaleString()}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                      <span>{h.results.length} résultat(s)</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

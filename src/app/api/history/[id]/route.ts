@@ -18,9 +18,13 @@ async function ensureTable() {
 
 export async function GET(
   _req: Request,
-  context: any
+  context: unknown
 ) {
-  const { id } = (context?.params || {}) as { id: string };
+  const params = (context as { params?: Record<string, string> })?.params || {};
+  const id = params.id;
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
   const sessionId = getOrCreateSession();
   await ensureTable();
   const { rows } = await sql<{

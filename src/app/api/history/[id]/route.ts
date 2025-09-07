@@ -25,7 +25,7 @@ export async function GET(
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
-  const sessionId = getOrCreateSession();
+  const sessionId = await getOrCreateSession();
   await ensureTable();
   const { rows } = await sql<{
     id: string;

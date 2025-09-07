@@ -64,6 +64,15 @@ export default function Home() {
       try {
         localStorage.setItem("vintedboost_last", JSON.stringify(item));
       } catch {}
+
+      // Persist on server (Vercel Postgres)
+      try {
+        await fetch("/api/history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item),
+        });
+      } catch {}
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg || "Erreur");
@@ -83,6 +92,16 @@ export default function Home() {
         if (Array.isArray(last?.results)) setOutImages(last.results);
       }
     } catch {}
+    // Attempt to hydrate from server history as source of truth when available
+    (async () => {
+      try {
+        const res = await fetch("/api/history", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data?.items)) setHistory(data.items);
+        }
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => {

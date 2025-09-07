@@ -18,7 +18,7 @@ async function ensureTable() {
 }
 
 export async function GET() {
-  const sessionId = getOrCreateSession();
+  const sessionId = await getOrCreateSession();
   await ensureTable();
   const { rows } = await sql<{
     id: string;
@@ -43,7 +43,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const sessionId = getOrCreateSession();
+  const sessionId = await getOrCreateSession();
   const body = (await req.json()) as {
     id?: string;
     source: string;

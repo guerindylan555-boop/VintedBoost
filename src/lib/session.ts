@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { randomUUID } from "crypto";
 
-export function getOrCreateSession(): string {
-  const jar = cookies();
+export async function getOrCreateSession(): Promise<string> {
+  const jar = await cookies();
   let sid = jar.get("vb_session")?.value;
   if (!sid) {
     sid = randomUUID();

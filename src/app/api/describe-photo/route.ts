@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
   const instruction =
     [
-      "À partir de la photo du vêtement NON porté et des informations de la carte ‘Infos vêtement’ (marque, modèle, genre, taille quand présents), propose TROIS descriptions Vinted distinctes.",
+      "À partir de la photo du vêtement NON porté et des informations de la carte ‘Infos vêtement’ (marque, modèle, genre, taille, état quand présents), rédige UNE SEULE description Vinted complète.",
       "Respecte ces consignes (inspirées des meilleures pratiques Vinted) :",
       "- Structure claire: titre concis (type d’article + marque + taille/atout), puis détails (matière, couleur, coupe), usages/occasions, avantages concrets, état et défauts éventuels, conclusion rassurante (envoi soigné, dispo pour questions).",
       "- Ton: amical et professionnel, positif sans superlatifs vagues; phrases courtes, honnêtes et précises; orthographe soignée.",
@@ -64,28 +64,22 @@ export async function POST(req: NextRequest) {
       "- Transparence: ne rien inventer; si une info est incertaine sur la photo, rester neutre ou omettre.",
     ].join(" ");
 
-  const requiredJsonShape = `Retourne strictement un JSON avec la forme suivante :
+  const requiredJsonShape = `Retourne strictement un JSON avec les clés suivantes:
 {
-  "proposals": [
-    {
-      "title": string,
-      "brand": string | null,
-      "model": string | null,
-      "category": string | null,
-      "condition": string, // neuf, très bon état, bon état, satisfaisant
-      "colors": string[] | null, // couleurs dominantes si visibles
-      "materials": string[] | null, // si visibles
-      "measurements": { "longueur": string|null, "poitrine": string|null, "epaules": string|null, "manches": string|null },
-      "defects": string[], // décrire honnêtement s’il y en a (sinon [] )
-      "care": string[],
-      "keywords": string[],
-      "hashtags": string[], // 3-5 tags pertinents
-      "bulletPoints": string[],
-      "descriptionText": string // 3–5 phrases, ton naturel, clair et vendeur
-    },
-    { ... },
-    { ... }
-  ]
+  "title": string,
+  "brand": string | null,
+  "model": string | null,
+  "category": string | null,
+  "condition": string, // neuf, très bon état, bon état, satisfaisant
+  "colors": string[] | null, // couleurs dominantes si visibles
+  "materials": string[] | null, // si visibles
+  "measurements": { "longueur": string|null, "poitrine": string|null, "epaules": string|null, "manches": string|null },
+  "defects": string[],
+  "care": string[],
+  "keywords": string[],
+  "hashtags": string[], // 3-5 tags pertinents
+  "bulletPoints": string[],
+  "descriptionText": string // 3–5 phrases, ton naturel, clair et vendeur
 }`;
 
   const metaText = `Infos vêtement: ${JSON.stringify(meta)}\nIndices: ${hints || "(aucun)"}`;

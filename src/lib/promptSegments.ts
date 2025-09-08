@@ -1,12 +1,7 @@
 // Segmented prompt builder for adaptive instructions based on toggles
 
-function nounWithArticle(gender: string, subject: string): string {
+function humanNounWithArticle(gender: string): string {
   const g = gender.toLowerCase();
-  const s = subject.toLowerCase();
-  if (s === "mannequin") {
-    return g === "homme" ? "d’un mannequin homme réaliste" : "d’un mannequin femme réaliste";
-  }
-  // humain
   return g === "homme" ? "d’un homme réaliste" : "d’une femme réaliste";
 }
 
@@ -122,65 +117,51 @@ function articleJeune(gender: string): string {
   return gender.toLowerCase() === "homme" ? "un jeune homme" : "une jeune femme";
 }
 
-export function segmentAmateurScene(background: string, gender: string, subject: string): string {
+export function segmentAmateurScene(background: string, gender: string): string {
   const subj = articleJeune(gender);
   const b = background.toLowerCase();
-  if (subject.toLowerCase() === "humain") {
-    switch (b) {
-      case "chambre":
-        return (
-          `${subj} se tenant devant un miroir dans une chambre à coucher, ` +
-          `prenant un selfie avec son téléphone portable "iPhone 15 noir". ` +
-          `L'arrière-plan montre un lit en bois avec des draps clairs, ` +
-          `une table en bois avec des livres et quelques vêtements éparpillés ` +
-          `sur le sol en bois.`
-        );
-      case "salon":
-        return (
-          `${subj} dans un salon, smartphone à la main, ` +
-          `avec un canapé en tissu et une table basse visibles en arrière-plan; ` +
-          `quelques objets du quotidien discrets (livres, coussins), décor rangé.`
-        );
-      case "extérieur":
-        return (
-          `${subj} en extérieur, photo smartphone en cadrage vertical, ` +
-          `dans une rue ou un parc; arrière-plan urbain/verdure légèrement flou.`
-        );
-      case "studio":
-      default:
-        return (
-          `${subj} sur fond uni simple, pris au smartphone; ` +
-          `mise en scène minimale, éclairage diffus.`
-        );
-    }
-  }
-  // Sujet = mannequin: éviter les mentions humaines/selfie
   switch (b) {
     case "chambre":
-      return "Mannequin présenté dans un décor de chambre rangée, rendu type photo vendeur, sans miroir ni téléphone visibles.";
+      return (
+        `${subj} se tenant devant un miroir dans une chambre à coucher, ` +
+        `prenant un selfie avec son téléphone portable "iPhone 15 noir". ` +
+        `L'arrière-plan montre un lit en bois avec des draps clairs, ` +
+        `une table en bois avec des livres et quelques vêtements éparpillés ` +
+        `sur le sol en bois.`
+      );
     case "salon":
-      return "Mannequin dans un décor de salon sobre, arrière-plan discret, focus sur le vêtement.";
+      return (
+        `${subj} dans un salon, smartphone à la main, ` +
+        `avec un canapé en tissu et une table basse visibles en arrière-plan; ` +
+        `quelques objets du quotidien discrets (livres, coussins), décor rangé.`
+      );
     case "extérieur":
-      return "Mannequin intégré en extérieur (urbain/parc), arrière-plan légèrement flou, aspect annonce Vinted.";
+      return (
+        `${subj} en extérieur, photo smartphone en cadrage vertical, ` +
+        `dans une rue ou un parc; arrière-plan urbain/verdure légèrement flou.`
+      );
     case "studio":
     default:
-      return "Mannequin sur fond uni simple, aspect prise de vue amateur contrôlée.";
+      return (
+        `${subj} sur fond uni simple, pris au smartphone; ` +
+        `mise en scène minimale, éclairage diffus.`
+      );
   }
 }
 
 export function composePromptSegments(
-  args: { gender: string; subject: string; size: string; pose: string; background: string; style: string },
+  args: { gender: string; size: string; pose: string; background: string; style: string },
   productReference?: string,
   variantLabel?: string
 ): string {
-  const start = `Utilise la photo fournie et génère une image photoréaliste ${nounWithArticle(args.gender, args.subject)} portant ce vêtement.`;
+  const start = `Utilise la photo fournie et génère une image photoréaliste ${humanNounWithArticle(args.gender)} portant ce vêtement.`;
   const ref = productReference ? ` Référence produit: ${productReference}.` : "";
   const variant = variantLabel ? ` Variante: ${variantLabel}.` : "";
   const size = segmentSize(args.size);
   const pose = segmentPose(args.pose);
   const env = segmentBackground(args.background);
   const style = segmentStyle(args.style, args.background);
-  const amateurScene = args.style === "amateur" ? segmentAmateurScene(args.background, args.gender, args.subject) : "";
+  const amateurScene = args.style === "amateur" ? segmentAmateurScene(args.background, args.gender) : "";
   const vinted = segmentVinted();
   const photo = segmentPhotoTech();
   return [start + ref + variant, size, pose, env, style, amateurScene, vinted, photo]

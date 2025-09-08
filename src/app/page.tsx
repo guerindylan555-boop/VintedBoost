@@ -28,15 +28,14 @@ export default function Home() {
   >([]);
 
   const [options, setOptions] = useState<MannequinOptions>({
-    subject: "humain",
     gender: "femme",
     size: "m",
     pose: "face",
     background: "studio",
     style: "professionnel",
   });
+  const [showPrompt, setShowPrompt] = useState(false);
 
-  const SUBJECTS = ["humain", "mannequin"] as const;
   const GENDERS = ["femme", "homme"] as const;
   const SIZES = ["xxs", "xs", "s", "m", "l", "xl", "xxl"] as const;
   const POSES = ["face", "trois-quarts", "profil", "assis", "marche"] as const;
@@ -120,7 +119,7 @@ export default function Home() {
           // migration: support older keys
           if (o.morphology && !o.size) o.size = o.morphology;
           delete o.customText;
-          if (!o.subject) o.subject = "humain";
+          delete o.subject; // drop legacy subject
           setOptions((prev) => ({ ...prev, ...o }));
         } catch {}
       }
@@ -208,25 +207,6 @@ export default function Home() {
             <div className="mt-4">
               <h3 className="text-sm font-medium text-gray-900 mb-2">Options d’image</h3>
               <div className="grid grid-cols-1 gap-3">
-                <div>
-                  <div className="mb-1 text-xs text-gray-600">Sujet</div>
-                  <div className="flex flex-wrap gap-2">
-                    {SUBJECTS.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setOptions((o) => ({ ...o, subject: s }))}
-                        className={cx(
-                          "rounded-md border px-2 py-1 text-xs",
-                          options.subject === s
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                        )}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
                 <div>
                   <div className="mb-1 text-xs text-gray-600">Genre</div>
                   <div className="flex flex-wrap gap-2">
@@ -328,12 +308,21 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-xs text-gray-600">Texte d’instruction envoyé au modèle</div>
-                  <textarea
-                    readOnly
-                    value={promptPreview}
-                    className="w-full min-h-24 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700"
-                  />
+                  <label className="mb-1 flex items-center gap-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={showPrompt}
+                      onChange={(e) => setShowPrompt(e.target.checked)}
+                    />
+                    Afficher le texte d’instruction envoyé au modèle
+                  </label>
+                  {showPrompt && (
+                    <textarea
+                      readOnly
+                      value={promptPreview}
+                      className="w-full min-h-24 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700"
+                    />
+                  )}
                 </div>
               </div>
             </div>

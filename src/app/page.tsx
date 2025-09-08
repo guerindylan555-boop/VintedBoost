@@ -31,6 +31,14 @@ export default function Home() {
     { id: string; createdAt: number; source: string; results: string[] }[]
   >([]);
 
+  // Informations sur le vêtement (marque, modèle, taille, genre cible)
+  const [product, setProduct] = useState<{
+    brand: string;
+    model: string;
+    size: string;
+    gender: string;
+  }>({ brand: "", model: "", size: "xs", gender: "femme" });
+
   const [options, setOptions] = useState<MannequinOptions>({
     gender: "femme",
     size: "xs",
@@ -52,9 +60,16 @@ export default function Home() {
     [imageDataUrl, generating]
   );
 
+  const productReference = useMemo(() => {
+    const parts = [product.brand, product.model]
+      .map((s) => (s || "").trim())
+      .filter(Boolean);
+    return parts.join(" ");
+  }, [product.brand, product.model]);
+
   const promptPreview = useMemo(
-    () => buildInstruction(options || {}, undefined, "aperçu"),
-    [options]
+    () => buildInstruction(options || {}, productReference || undefined, "aperçu"),
+    [options, productReference]
   );
 
   function onFiles(files?: FileList | null) {
@@ -79,7 +94,7 @@ export default function Home() {
       const imgRes = await fetch("/api/generate-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageDataUrl, options, count: 1 }),
+        body: JSON.stringify({ imageDataUrl, options, productReference: productReference || undefined, count: 1 }),
       });
       const imgJson = await imgRes.json();
       if (!imgRes.ok) throw new Error(imgJson?.error || "Erreur images");
@@ -133,6 +148,13 @@ export default function Home() {
           setOptions((prev) => ({ ...prev, ...o }));
         } catch {}
       }
+      const rawProd = localStorage.getItem("vintedboost_product");
+      if (rawProd) {
+        try {
+          const p = JSON.parse(rawProd) || {};
+          setProduct((prev) => ({ ...prev, ...p }));
+        } catch {}
+      }
     } catch {}
     // Attempt to hydrate from server history as source of truth when available
     (async () => {
@@ -158,6 +180,12 @@ export default function Home() {
     } catch {}
   }, [options]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("vintedboost_product", JSON.stringify(product));
+    } catch {}
+  }, [product]);
+
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white text-gray-900 dark:from-gray-950 dark:to-gray-900 dark:text-gray-100">
       <header className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b border-gray-100 dark:border-gray-800">
@@ -174,7 +202,75 @@ export default function Home() {
 
       <main className="mx-auto max-w-screen-md p-4">
         <div className="grid gap-6 md:grid-cols-2">
-          <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
+          {/* Carte d'informations sur le vêtement */}
+          <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-1 md:row-start-1">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold uppercase tracking-wide">Infos vêtement</h2>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="brand">Marque</label>
+                <input
+                  id="brand"
+                  type="text"
+                  placeholder="ex: Nike, Zara, Levi's..."
+                  value={product.brand}
+                  onChange={(e) => setProduct((p) => ({ ...p, brand: e.target.value }))}
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="model">Modèle</label>
+                <input
+                  id="model"
+                  type="text"
+                  placeholder="ex: Air Max 90, Veste Trucker..."
+                  value={product.model}
+                  onChange={(e) => setProduct((p) => ({ ...p, model: e.target.value }))}
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
+                />
+              </div>
+              <div>
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre cible</div>
+                <div className="flex flex-wrap gap-2">
+                  {GENDERS.map((g) => (
+                    <button
+                      key={`prod-gender-${g}`}
+                      onClick={() => setProduct((p) => ({ ...p, gender: g }))}
+                      className={cx(
+                        "rounded-md border px-2 py-1 text-xs uppercase",
+                        product.gender === g
+                          ? "bg-brand-600 text-white border-brand-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                      )}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Taille</div>
+                <div className="flex flex-wrap gap-2">
+                  {SIZES.map((s) => (
+                    <button
+                      key={`prod-size-${s}`}
+                      onClick={() => setProduct((p) => ({ ...p, size: s }))}
+                      className={cx(
+                        "rounded-md border px-2 py-1 text-xs uppercase",
+                        product.size === s
+                          ? "bg-brand-600 text-white border-brand-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                      )}
+                    >
+                      {s.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+          <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-1 md:row-start-2">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-base font-semibold uppercase tracking-wide">Votre photo</h2>
               <div className="flex items-center gap-2">
@@ -478,7 +574,7 @@ export default function Home() {
 
           <section
             ref={resultRef}
-            className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm"
+            className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-2 md:row-start-1"
           >
             <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
             {generating ? (

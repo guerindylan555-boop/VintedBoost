@@ -26,13 +26,9 @@ export default function AuthPage() {
           setLoading(false);
           return;
         }
-        await authClient.signUp.email({
-          body: { name, email, password, rememberMe: true },
-        });
+        await authClient.signUp.email({ name, email, password });
       } else {
-        await authClient.signIn.email({
-          body: { email, password, rememberMe: true },
-        });
+        await authClient.signIn.email({ email, password });
       }
       router.replace(next);
     } catch (e: unknown) {

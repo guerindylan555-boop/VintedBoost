@@ -180,24 +180,42 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  aria-label="Téléverser une image"
-                  title="Téléverser"
+                  aria-label={imageDataUrl ? "Téléverser une image" : "Prendre une photo"}
+                  title={imageDataUrl ? "Téléverser" : "Prendre une photo"}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
                 >
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M3 16.5V18A2.25 2.25 0 0 0 5.25 20.25H18.75A2.25 2.25 0 0 0 21 18V16.5" />
-                    <path d="M7.5 10.5 12 6l4.5 4.5" />
-                    <path d="M12 6v12" />
-                  </svg>
+                  {imageDataUrl ? (
+                    // Upload icon
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-5 w-5"
+                    >
+                      <path d="M3 16.5V18A2.25 2.25 0 0 0 5.25 20.25H18.75A2.25 2.25 0 0 0 21 18V16.5" />
+                      <path d="M7.5 10.5 12 6l4.5 4.5" />
+                      <path d="M12 6v12" />
+                    </svg>
+                  ) : (
+                    // Camera icon
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-5 w-5"
+                    >
+                      <path d="M9 7l1.5-2h3L15 7h3a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3h3z" />
+                      <circle cx="12" cy="13" r="3.5" />
+                    </svg>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -208,7 +226,8 @@ export default function Home() {
                   }}
                   aria-label="Réinitialiser"
                   title="Réinitialiser"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+                  disabled={!imageDataUrl}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg
                     aria-hidden="true"
@@ -264,6 +283,7 @@ export default function Home() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                capture="environment"
                 onChange={(e) => onFiles(e.target.files)}
                 className="hidden"
               />

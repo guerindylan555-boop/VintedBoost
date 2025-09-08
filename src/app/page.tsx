@@ -174,7 +174,58 @@ export default function Home() {
       <main className="mx-auto max-w-screen-md p-4">
         <div className="grid gap-6 md:grid-cols-2">
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
-            <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Votre photo</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold uppercase tracking-wide">Votre photo</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Téléverser une image"
+                  title="Téléverser"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                  >
+                    <path d="M3 16.5V18A2.25 2.25 0 0 0 5.25 20.25H18.75A2.25 2.25 0 0 0 21 18V16.5" />
+                    <path d="M7.5 10.5 12 6l4.5 4.5" />
+                    <path d="M12 6v12" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImageDataUrl(null);
+                    setOutImages([]);
+                    setError(null);
+                  }}
+                  aria-label="Réinitialiser"
+                  title="Réinitialiser"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                  >
+                    <path d="M16.023 9.348h4.992V4.356" />
+                    <path d="M21.015 12.97a8.25 8.25 0 1 1-2.215-5.63" />
+                  </svg>
+                </button>
+              </div>
+            </div>
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -381,18 +432,6 @@ export default function Home() {
               >
                 {generating ? "Génération…" : "Générer l’image portée"}
               </button>
-              {imageDataUrl && (
-                <button
-                  onClick={() => {
-                    setImageDataUrl(null);
-                    setOutImages([]);
-                    setError(null);
-                  }}
-                  className="inline-flex shrink-0 items-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  Réinitialiser
-                </button>
-              )}
             </div>
             {error ? (
               <div className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</div>

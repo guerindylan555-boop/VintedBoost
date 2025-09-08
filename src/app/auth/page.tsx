@@ -26,11 +26,11 @@ export default function AuthPage() {
           setLoading(false);
           return;
         }
-        await authClient.signUpEmail({
+        await authClient.signUp.email({
           body: { name, email, password, rememberMe: true },
         });
       } else {
-        await authClient.signInEmail({
+        await authClient.signIn.email({
           body: { email, password, rememberMe: true },
         });
       }

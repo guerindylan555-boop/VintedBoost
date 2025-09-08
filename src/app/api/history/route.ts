@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
-import { getSessionId, setSessionCookie } from "@/lib/session";
+import { auth } from "@/lib/auth";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
@@ -17,12 +17,22 @@ async function ensureTable() {
   `;
 }
 
-export async function GET() {
-  let sessionId = await getSessionId();
-  let newSessionId: string | null = null;
-  if (!sessionId) {
-    sessionId = randomUUID();
-    newSessionId = sessionId;
+export async function GET(req: NextRequest) {
+  // Ensure there is a Better Auth session (anonymous if needed)
+  let session = await auth.api.getSession({ headers: req.headers });
+  if (!session) {
+    await auth.api.signInAnonymous({ headers: req.headers });
+    session = await auth.api.getSession({ headers: req.headers });
+  }
+  let sessionId = session?.user?.id || randomUUID();
+  // Backward-compat: if legacy cookie exists and no auth session, use it to read
+  if (!session) {
+    try {
+      const { cookies } = await import("next/headers");
+      const jar = await cookies();
+      const legacy = jar.get("vb_session")?.value;
+      if (legacy) sessionId = legacy;
+    } catch {}
   }
   await ensureTable();
   const { rows } = await sql<{
@@ -45,16 +55,15 @@ export async function GET() {
       results: Array.isArray(r.results) ? (r.results as string[]) : [],
     })),
   });
-  if (newSessionId) setSessionCookie(res, newSessionId);
   return res;
 }
 
 export async function POST(req: NextRequest) {
-  let sessionId = await getSessionId();
-  let newSessionId: string | null = null;
-  if (!sessionId) {
-    sessionId = randomUUID();
-    newSessionId = sessionId;
+  // Ensure there is a Better Auth session (anonymous if needed)
+  let session = await auth.api.getSession({ headers: req.headers });
+  if (!session) {
+    await auth.api.signInAnonymous({ headers: req.headers });
+    session = await auth.api.getSession({ headers: req.headers });
   }
   const body = (await req.json()) as {
     id?: string;
@@ -81,13 +90,11 @@ export async function POST(req: NextRequest) {
   await ensureTable();
   await sql`
     INSERT INTO history_items (id, session_id, created_at, source_image, results)
-    VALUES (${id}, ${sessionId}, ${created.toISOString()}, ${body.source}, ${JSON.stringify(
+    VALUES (${id}, ${session?.user?.id || randomUUID()}, ${created.toISOString()}, ${body.source}, ${JSON.stringify(
     body.results
   )}::jsonb)
     ON CONFLICT (id) DO NOTHING
   `;
 
-  const res = NextResponse.json({ ok: true, id });
-  if (newSessionId) setSessionCookie(res, newSessionId);
-  return res;
+  return NextResponse.json({ ok: true, id });
 }

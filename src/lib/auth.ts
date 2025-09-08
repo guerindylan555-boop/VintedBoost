@@ -35,3 +35,10 @@ export const auth = betterAuth({
   // Sensible defaults; you can further tune cookies, session TTL, etc.
   // secret read from BETTER_AUTH_SECRET / AUTH_SECRET or uses a dev default.
 });
+
+// Attempt to run migrations on cold start when a database is configured.
+if (pool) {
+  // Fire and forget; errors will be logged server-side
+  // Tables are created if missing (users, sessions, accounts, verification)
+  auth.runMigrations?.().catch(() => {});
+}

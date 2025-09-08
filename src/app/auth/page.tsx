@@ -33,6 +33,10 @@ function AuthPageInner() {
       } else {
         await authClient.signIn.email({ email, password });
       }
+      // Ensure session is hydrated before redirect
+      try {
+        await authClient.getSession();
+      } catch {}
       router.replace(next);
     } catch (e: unknown) {
       console.error(e);
@@ -43,10 +47,10 @@ function AuthPageInner() {
   }, [mode, name, email, password, next, router]);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-lg border border-gray-200 p-6 shadow-sm bg-white">
+    <div className="min-h-screen w-full flex items-center justify-center p-6 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+      <div className="w-full max-w-md rounded-lg border border-gray-200 dark:border-gray-800 p-6 shadow-sm bg-white dark:bg-gray-900">
         <h1 className="text-xl font-semibold mb-2">Connexion</h1>
-        <p className="text-sm text-gray-600 mb-6">
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
           Identifiez-vous pour accéder à VintedBoost.
         </p>
 
@@ -73,7 +77,7 @@ function AuthPageInner() {
           <div className="mb-3">
             <label className="block text-xs mb-1">Nom</label>
             <input
-              className="w-full border rounded-md p-2 text-sm"
+              className="w-full border rounded-md p-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-300 dark:border-gray-700"
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoComplete="name"
@@ -84,7 +88,7 @@ function AuthPageInner() {
         <div className="mb-3">
           <label className="block text-xs mb-1">Email</label>
           <input
-            className="w-full border rounded-md p-2 text-sm"
+            className="w-full border rounded-md p-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-300 dark:border-gray-700"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             type="email"
@@ -94,7 +98,7 @@ function AuthPageInner() {
         <div className="mb-3">
           <label className="block text-xs mb-1">Mot de passe</label>
           <input
-            className="w-full border rounded-md p-2 text-sm"
+            className="w-full border rounded-md p-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-100 border-gray-300 dark:border-gray-700"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             type="password"
@@ -102,12 +106,12 @@ function AuthPageInner() {
           />
         </div>
 
-        {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+        {error && <p className="text-sm text-red-500 dark:text-red-400 mb-3" aria-live="polite">{error}</p>}
 
         <button
           onClick={submit}
           disabled={loading}
-          className="w-full bg-black text-white rounded-md py-2 text-sm disabled:opacity-60"
+          className="w-full bg-black dark:bg-white dark:text-black text-white rounded-md py-2 text-sm disabled:opacity-60"
         >
           {loading ? "Veuillez patienter…" : mode === "signup" ? "Créer le compte" : "Se connecter"}
         </button>

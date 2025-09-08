@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
 // Ensure this route is never statically prerendered
 export const dynamic = "force-dynamic";
 
-export default function AuthPage() {
+function AuthPageInner() {
   const router = useRouter();
   const sp = useSearchParams();
   const next = useMemo(() => sp.get("next") || "/", [sp]);
@@ -113,5 +113,13 @@ export default function AuthPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center">Chargement…</div>}>
+      <AuthPageInner />
+    </Suspense>
   );
 }

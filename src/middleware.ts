@@ -25,10 +25,7 @@ export function middleware(req: NextRequest) {
     req.cookies.get("__Secure-better-auth.session_token")?.value ||
     req.cookies.get("better-auth.session_token")?.value;
 
-  // Legacy cookie support (optional): treat existing vb_session as signed-in
-  const legacy = req.cookies.get("vb_session")?.value;
-
-  if (sessionCookie || legacy) {
+  if (sessionCookie) {
     return NextResponse.next();
   }
 
@@ -44,4 +41,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|api/auth).*)",
   ],
 };
-

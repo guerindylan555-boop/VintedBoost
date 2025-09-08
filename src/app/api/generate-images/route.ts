@@ -29,7 +29,41 @@ export async function POST(req: NextRequest) {
 
   const n = Math.min(Math.max(Number(count) || 1, 1), 3);
 
+  function extractImageUrls(resp: OpenRouterChatCompletionResponse): string[] {
+    type ImagesPart = { image_url?: { url?: string } };
+    type ChoiceMessage = { images?: ImagesPart[]; content?: unknown };
+    type ChoiceDelta = { images?: ImagesPart[] };
+    type Choice = { message?: ChoiceMessage; delta?: ChoiceDelta };
+
+    const urls: string[] = [];
+    const choice = (resp?.choices?.[0] || {}) as Choice;
+    const direct = choice.message?.images || choice.delta?.images || [];
+    for (const it of direct) {
+      const u = it?.image_url?.url;
+      if (typeof u === "string") urls.push(u);
+    }
+    const content = choice.message?.content;
+    // Some providers may return a string content with embedded data URLs or http image links
+    if (typeof content === "string") {
+      const dataUrls = content.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/g) || [];
+      for (const u of dataUrls) urls.push(u);
+      const httpUrls = content.match(/https?:\/\/\S+\.(?:png|jpe?g|webp|gif)/gi) || [];
+      for (const u of httpUrls) urls.push(u);
+    }
+    // If content is array of parts with image_url
+    if (Array.isArray(content)) {
+      for (const part of content as Array<Record<string, unknown>>) {
+        const u =
+          (part?.image_url as { url?: string } | undefined)?.url ||
+          (part?.url as string | undefined);
+        if (typeof u === "string") urls.push(u);
+      }
+    }
+    return Array.from(new Set(urls));
+  }
+
   const imagesOut: string[] = [];
+  const instructionEchoes: string[] = [];
   try {
     for (let i = 0; i < n; i++) {
       const instruction = buildInstruction(
@@ -37,7 +71,13 @@ export async function POST(req: NextRequest) {
         productReference,
         i === 0 ? "pose principale" : i === 1 ? "léger mouvement" : "trois-quarts"
       );
+      instructionEchoes.push(instruction);
       const messages: OpenRouterChatMessage[] = [
+        {
+          role: "system",
+          content:
+            "Tu génères UNIQUEMENT une image correspondant aux instructions. Ne retourne pas de texte.",
+        },
         {
           role: "user",
           content: [
@@ -49,19 +89,17 @@ export async function POST(req: NextRequest) {
       const payload = {
         model: getImageModel(),
         messages,
-        modalities: ["image", "text"],
+        modalities: ["image"],
+        // Some providers honor this to prefer non-text responses
+        max_output_tokens: 0,
       };
 
       const data = await openrouterFetch<OpenRouterChatCompletionResponse>(
         payload,
         { cache: "no-store" }
       );
-      const imgs =
-        data?.choices?.[0]?.message?.images ||
-        data?.choices?.[0]?.delta?.images ||
-        [];
-      const firstUrl = imgs[0]?.image_url?.url;
-      if (firstUrl) imagesOut.push(firstUrl);
+      const urls = extractImageUrls(data);
+      if (urls[0]) imagesOut.push(urls[0]);
     }
 
     if (imagesOut.length === 0) {
@@ -70,7 +108,14 @@ export async function POST(req: NextRequest) {
         { status: 502 }
       );
     }
-    return NextResponse.json({ images: imagesOut }, { status: 200 });
+    const payload: { images: string[]; instructions?: string[] } = { images: imagesOut };
+    // Help debugging locally by returning the exact instructions
+    try {
+      if (process.env.NODE_ENV !== "production") {
+        payload.instructions = instructionEchoes;
+      }
+    } catch {}
+    return NextResponse.json(payload, { status: 200 });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json(

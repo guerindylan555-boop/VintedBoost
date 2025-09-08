@@ -24,7 +24,8 @@ export default function Home() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outImages, setOutImages] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputGalleryRef = useRef<HTMLInputElement | null>(null);
+  const fileInputCameraRef = useRef<HTMLInputElement | null>(null);
   const resultRef = useRef<HTMLElement | null>(null);
   const [history, setHistory] = useState<
     { id: string; createdAt: number; source: string; results: string[] }[]
@@ -179,7 +180,15 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    if (!imageDataUrl) {
+                      // Camera icon state: open camera capture
+                      fileInputCameraRef.current?.click();
+                    } else {
+                      // Upload icon state: open file picker (gallery)
+                      fileInputGalleryRef.current?.click();
+                    }
+                  }}
                   aria-label={imageDataUrl ? "Téléverser une image" : "Prendre une photo"}
                   title={imageDataUrl ? "Téléverser" : "Prendre une photo"}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
@@ -272,15 +281,24 @@ export default function Home() {
                   Glissez-déposez l’image du vêtement non porté
                   <div className="mt-2">ou</div>
                   <button
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => fileInputGalleryRef.current?.click()}
                     className="mt-2 inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm ring-1 ring-inset ring-gray-200 hover:bg-gray-50"
                   >
                     Choisir un fichier
                   </button>
                 </div>
               )}
+              {/* Gallery picker (no camera capture) */}
               <input
-                ref={fileInputRef}
+                ref={fileInputGalleryRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => onFiles(e.target.files)}
+                className="hidden"
+              />
+              {/* Camera capture (mobile opens camera) */}
+              <input
+                ref={fileInputCameraRef}
                 type="file"
                 accept="image/*"
                 capture="environment"

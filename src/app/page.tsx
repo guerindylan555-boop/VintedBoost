@@ -28,40 +28,18 @@ export default function Home() {
   >([]);
 
   const [options, setOptions] = useState<MannequinOptions>({
-    gender: "unisex",
-    morphology: "standard",
+    gender: "femme",
+    size: "m",
     pose: "face",
-    background: "fond blanc studio",
-    style: "studio e-commerce",
-    customText: "",
+    background: "studio",
+    style: "professionnel",
   });
 
-  const GENDERS = ["femme", "homme", "unisex", "enfant"] as const;
-  const MORPHS = [
-    "standard",
-    "XS",
-    "S",
-    "M",
-    "L",
-    "XL",
-    "athletic",
-    "petite",
-  ] as const;
+  const GENDERS = ["femme", "homme"] as const;
+  const SIZES = ["xxs", "xs", "s", "m", "l", "xl", "xxl"] as const;
   const POSES = ["face", "trois-quarts", "profil", "assis", "marche"] as const;
-  const STYLES = [
-    "studio e-commerce",
-    "éditorial",
-    "lifestyle intérieur",
-    "streetwear",
-    "extérieur jour",
-  ] as const;
-  const BACKGROUNDS = [
-    "fond blanc studio",
-    "gris neutre",
-    "béton",
-    "mur brique",
-    "extérieur urbain",
-  ] as const;
+  const STYLES = ["professionnel", "amateur"] as const;
+  const BACKGROUNDS = ["chambre", "salon", "studio", "extérieur"] as const;
 
   const canGenerate = useMemo(
     () => Boolean(imageDataUrl && !generating),
@@ -136,8 +114,11 @@ export default function Home() {
       const rawOpts = localStorage.getItem("vintedboost_options");
       if (rawOpts) {
         try {
-          const o = JSON.parse(rawOpts);
-          setOptions((prev) => ({ ...prev, ...(o || {}) }));
+          const o = JSON.parse(rawOpts) || {};
+          // migration: support older keys
+          if (o.morphology && !o.size) o.size = o.morphology;
+          delete o.customText;
+          setOptions((prev) => ({ ...prev, ...o }));
         } catch {}
       }
     } catch {}
@@ -245,20 +226,20 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-xs text-gray-600">Morphologie</div>
+                  <div className="mb-1 text-xs text-gray-600">Taille du vêtement</div>
                   <div className="flex flex-wrap gap-2">
-                    {MORPHS.map((m) => (
+                    {SIZES.map((s) => (
                       <button
-                        key={m}
-                        onClick={() => setOptions((o) => ({ ...o, morphology: m }))}
+                        key={s}
+                        onClick={() => setOptions((o) => ({ ...o, size: s }))}
                         className={cx(
                           "rounded-md border px-2 py-1 text-xs",
-                          options.morphology === m
+                          options.size === s
                             ? "bg-blue-600 text-white border-blue-600"
                             : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                         )}
                       >
-                        {m}
+                        {s.toUpperCase()}
                       </button>
                     ))}
                   </div>
@@ -322,19 +303,6 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs text-gray-600">
-                    Texte personnalisé (optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    value={options.customText || ""}
-                    onChange={(e) => setOptions((o) => ({ ...o, customText: e.target.value }))}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: éclairage dur flash, contraste plus marqué"
-                  />
                 </div>
 
                 <div>

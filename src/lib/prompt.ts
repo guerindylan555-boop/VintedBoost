@@ -1,35 +1,52 @@
 export type MannequinOptions = {
-  gender?: string; // "femme", "homme", "unisex", "enfant"
-  morphology?: string; // ex: "XS", "S", "M", "L", "XL", "athletic", "petite", "standard"
+  gender?: string; // "femme" | "homme"
+  size?: string; // "xxs" | "xs" | "s" | "m" | "l" | "xl" | "xxl"
   pose?: string; // ex: "face", "trois-quarts", "assis", "marche", "profil"
-  background?: string; // ex: "fond blanc studio", "gris neutre", "béton", "mur brique", "extérieur urbain"
-  style?: string; // ex: "studio e-commerce", "éditorial", "lifestyle intérieur", "streetwear", "extérieur jour"
-  customText?: string; // texte libre additionnel
+  background?: string; // "chambre" | "salon" | "studio" | "extérieur"
+  style?: string; // "professionnel" | "amateur"
 };
 
-export function normalizeOptions(opts?: MannequinOptions): Required<Pick<MannequinOptions, "gender"|"morphology"|"pose"|"background"|"style">> & Partial<MannequinOptions> {
+export function normalizeOptions(
+  opts?: MannequinOptions
+): Required<Pick<MannequinOptions, "gender" | "size" | "pose" | "background" | "style">> {
   const o = opts || {};
-  const gender = (o.gender || "unisex").toLowerCase();
-  const morphology = (o.morphology || "standard").toLowerCase();
+  const gender = (o.gender || "femme").toLowerCase();
+  const size = (o.size || "m").toLowerCase();
   const pose = (o.pose || "face").toLowerCase();
-  const background = (o.background || "fond blanc studio").toLowerCase();
-  const style = (o.style || "studio e-commerce").toLowerCase();
-  return { gender, morphology, pose, background, style, customText: o.customText };
+  const background = (o.background || "studio").toLowerCase();
+  const style = (o.style || "professionnel").toLowerCase();
+  return { gender, size, pose, background, style };
 }
 
 function styleSentence(style: string): string {
   switch (style) {
-    case "éditorial":
-      return "Style: éditorial propre, cadrage simple, adapté aux annonces Vinted.";
-    case "lifestyle intérieur":
-      return "Style: lifestyle intérieur, ambiance naturelle, adapté Vinted.";
-    case "streetwear":
-      return "Style: streetwear simple, focus vêtement, adapté Vinted.";
-    case "extérieur jour":
-      return "Style: extérieur jour lumineux, rendu naturel, adapté Vinted.";
-    case "studio e-commerce":
+    case "amateur":
+      return "Style: prise de vue amateur smartphone (lumière naturelle, rendu spontané).";
+    case "professionnel":
     default:
-      return "Style: studio e-commerce, éclairage doux diffus (type softbox), 50mm équivalent.";
+      return "Style: prise de vue professionnelle (netteté propre, éclairage maîtrisé).";
+  }
+}
+
+function corpulenceFromSize(size: string): string {
+  const s = size.toLowerCase();
+  switch (s) {
+    case "xxs":
+      return "corpulence très fine, petit gabarit";
+    case "xs":
+      return "corpulence fine, petit gabarit";
+    case "s":
+      return "corpulence plutôt mince";
+    case "m":
+      return "corpulence moyenne/standard";
+    case "l":
+      return "corpulence plus large, carrure marquée";
+    case "xl":
+      return "corpulence forte, carrure large";
+    case "xxl":
+      return "corpulence très forte, grande carrure";
+    default:
+      return "corpulence moyenne/standard";
   }
 }
 
@@ -38,7 +55,7 @@ export function buildInstruction(
   productReference?: string,
   variantLabel?: string
 ): string {
-  const { gender, morphology, pose, background, style, customText } = normalizeOptions(inputOpts);
+  const { gender, size, pose, background, style } = normalizeOptions(inputOpts);
 
   const refText = productReference ? `Référence produit: ${productReference}. ` : "";
   const variant = variantLabel ? `Variante: ${variantLabel}. ` : "";
@@ -49,19 +66,19 @@ export function buildInstruction(
     "Mannequin humain réaliste (proportions crédibles, peau naturelle, pas de look cartoon), pose naturelle, regard neutre ou légèrement hors caméra.";
 
   const styleText = styleSentence(style);
+  const corpulenceText = `Gabarit du mannequin: taille ${size.toUpperCase()}, ${corpulenceFromSize(size)}.`;
 
   const base =
     `${refText}${variant}` +
     `Transforme la photo du vêtement non porté en une photo portée très réaliste.` +
     ` Garde la fidélité des couleurs, matières, motifs et coutures.` +
-    ` Présente le vêtement sur un mannequin/humain (${gender}, morphologie ${morphology}),` +
-    ` en pose ${pose}, fond/environnement ${background}. ` +
+    ` Présente le vêtement sur un mannequin/humain (${gender}). ` +
+    `${corpulenceText} ` +
+    `Pose: ${pose}. Environnement: ${background}. ` +
     `${styleText} ` +
     `${realism} ` +
     `${vintedGuidelines} ` +
     ` Définition haute, netteté propre, balance des blancs neutre, rendu naturel, sans texte ni watermark.`;
 
-  const extra = customText ? ` ${customText.trim()}` : "";
-  return (base + extra).trim();
+  return base.trim();
 }
-

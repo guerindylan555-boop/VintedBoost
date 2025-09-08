@@ -4,13 +4,7 @@ import {
   OpenRouterChatCompletionResponse,
   OpenRouterChatMessage,
 } from "@/lib/openrouter";
-
-type MannequinOptions = {
-  gender?: string; // "femme", "homme", "unisex", "enfant"
-  morphology?: string; // ex: "S", "M", "L", "athletic", "petite"
-  pose?: string; // ex: "face", "trois-quarts", "assis", "marche"
-  background?: string; // ex: "fond blanc", "gris neutre", "béton"
-};
+import { MannequinOptions, buildInstruction } from "@/lib/prompt";
 
 export const runtime = "nodejs";
 
@@ -18,34 +12,6 @@ function getImageModel() {
   return (
     process.env.OPENROUTER_IMAGE_MODEL ||
     "google/gemini-2.5-flash-image-preview"
-  );
-}
-
-function buildInstruction(
-  opts: MannequinOptions,
-  productReference?: string,
-  variantLabel?: string
-) {
-  const gender = opts.gender || "unisex";
-  const morph = opts.morphology || "standard";
-  const pose = opts.pose || "face";
-  const bg = opts.background || "fond blanc studio";
-
-  const refText = productReference
-    ? `Référence produit: ${productReference}. `
-    : "";
-
-  const variant = variantLabel ? `Variante: ${variantLabel}. ` : "";
-
-  return (
-    `${refText}${variant}` +
-    `Transforme la photo du vêtement non porté en une photo portée réaliste.` +
-    ` Garde la fidélité des couleurs, matières, motifs et coutures.` +
-    ` Présente le vêtement sur un mannequin/humain (${gender}, morphologie ${morph}),` +
-    ` en pose ${pose}, fond ${bg}.` +
-    ` Style: studio e-commerce, éclairage doux diffus, 50mm équivalent.` +
-    ` Ratio 4:5, définition haute, sans texte ni watermark.` +
-    ` Respecte la perspective et la structure du vêtement original.`
   );
 }
 

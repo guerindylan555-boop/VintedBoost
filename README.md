@@ -6,6 +6,7 @@ Quick start
 - If you want server persistence locally, also set `POSTGRES_URL` to a Vercel Postgres connection string.
 - Run `npm run dev` then open http://localhost:3000
 - Upload a “non porté” photo, set the reference, choose mannequin options, click “Générer”.
+- Configure the new toggles (genre, morphologie, pose, style, environnement) — the prompt preview updates live — then click “Générer”.
 
 Notes
 
@@ -13,6 +14,7 @@ Notes
 - Images: model `google/gemini-2.5-flash-image-preview` (overridable via `OPENROUTER_IMAGE_MODEL`).
 - Images are returned as base64 Data URLs and are downloadable.
 - History persists locally in `localStorage` with “dupliquer l’annonce”.
+- A prompt preview shows the exact instruction sent to the image model, adapted for the Vinted marketplace and “mannequin réaliste”.
 
 Server history (Vercel Postgres)
 

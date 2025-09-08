@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { buildInstruction, type MannequinOptions } from "@/lib/prompt";
 
 function cx(...xs: Array<string | false | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -26,9 +27,50 @@ export default function Home() {
     { id: string; createdAt: number; source: string; results: string[] }[]
   >([]);
 
+  const [options, setOptions] = useState<MannequinOptions>({
+    gender: "unisex",
+    morphology: "standard",
+    pose: "face",
+    background: "fond blanc studio",
+    style: "studio e-commerce",
+    customText: "",
+  });
+
+  const GENDERS = ["femme", "homme", "unisex", "enfant"] as const;
+  const MORPHS = [
+    "standard",
+    "XS",
+    "S",
+    "M",
+    "L",
+    "XL",
+    "athletic",
+    "petite",
+  ] as const;
+  const POSES = ["face", "trois-quarts", "profil", "assis", "marche"] as const;
+  const STYLES = [
+    "studio e-commerce",
+    "éditorial",
+    "lifestyle intérieur",
+    "streetwear",
+    "extérieur jour",
+  ] as const;
+  const BACKGROUNDS = [
+    "fond blanc studio",
+    "gris neutre",
+    "béton",
+    "mur brique",
+    "extérieur urbain",
+  ] as const;
+
   const canGenerate = useMemo(
     () => Boolean(imageDataUrl && !generating),
     [imageDataUrl, generating]
+  );
+
+  const promptPreview = useMemo(
+    () => buildInstruction(options || {}, undefined, "aperçu"),
+    [options]
   );
 
   function onFiles(files?: FileList | null) {
@@ -48,7 +90,7 @@ export default function Home() {
       const imgRes = await fetch("/api/generate-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageDataUrl, options: {}, count: 1 }),
+        body: JSON.stringify({ imageDataUrl, options, count: 1 }),
       });
       const imgJson = await imgRes.json();
       if (!imgRes.ok) throw new Error(imgJson?.error || "Erreur images");
@@ -91,6 +133,13 @@ export default function Home() {
         if (last?.source) setImageDataUrl(last.source);
         if (Array.isArray(last?.results)) setOutImages(last.results);
       }
+      const rawOpts = localStorage.getItem("vintedboost_options");
+      if (rawOpts) {
+        try {
+          const o = JSON.parse(rawOpts);
+          setOptions((prev) => ({ ...prev, ...(o || {}) }));
+        } catch {}
+      }
     } catch {}
     // Attempt to hydrate from server history as source of truth when available
     (async () => {
@@ -109,6 +158,12 @@ export default function Home() {
       localStorage.setItem("vintedboost_history", JSON.stringify(history));
     } catch {}
   }, [history]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("vintedboost_options", JSON.stringify(options));
+    } catch {}
+  }, [options]);
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white text-gray-900">
@@ -164,6 +219,133 @@ export default function Home() {
                 onChange={(e) => onFiles(e.target.files)}
                 className="hidden"
               />
+            </div>
+
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-gray-900 mb-2">Options d’image</h3>
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <div className="mb-1 text-xs text-gray-600">Genre</div>
+                  <div className="flex flex-wrap gap-2">
+                    {GENDERS.map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setOptions((o) => ({ ...o, gender: g }))}
+                        className={cx(
+                          "rounded-md border px-2 py-1 text-xs",
+                          options.gender === g
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        )}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-xs text-gray-600">Morphologie</div>
+                  <div className="flex flex-wrap gap-2">
+                    {MORPHS.map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setOptions((o) => ({ ...o, morphology: m }))}
+                        className={cx(
+                          "rounded-md border px-2 py-1 text-xs",
+                          options.morphology === m
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        )}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-xs text-gray-600">Pose</div>
+                  <div className="flex flex-wrap gap-2">
+                    {POSES.map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setOptions((o) => ({ ...o, pose: p }))}
+                        className={cx(
+                          "rounded-md border px-2 py-1 text-xs",
+                          options.pose === p
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        )}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-xs text-gray-600">Style d’image</div>
+                  <div className="flex flex-wrap gap-2">
+                    {STYLES.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setOptions((o) => ({ ...o, style: s }))}
+                        className={cx(
+                          "rounded-md border px-2 py-1 text-xs",
+                          options.style === s
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        )}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-xs text-gray-600">Environnement / Fond</div>
+                  <div className="flex flex-wrap gap-2">
+                    {BACKGROUNDS.map((b) => (
+                      <button
+                        key={b}
+                        onClick={() => setOptions((o) => ({ ...o, background: b }))}
+                        className={cx(
+                          "rounded-md border px-2 py-1 text-xs",
+                          options.background === b
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        )}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-gray-600">
+                    Texte personnalisé (optionnel)
+                  </label>
+                  <input
+                    type="text"
+                    value={options.customText || ""}
+                    onChange={(e) => setOptions((o) => ({ ...o, customText: e.target.value }))}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: éclairage dur flash, contraste plus marqué"
+                  />
+                </div>
+
+                <div>
+                  <div className="mb-1 text-xs text-gray-600">Texte d’instruction envoyé au modèle</div>
+                  <textarea
+                    readOnly
+                    value={promptPreview}
+                    className="w-full min-h-24 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="mt-4 flex items-center gap-2">

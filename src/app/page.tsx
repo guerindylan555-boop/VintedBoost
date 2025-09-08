@@ -334,12 +334,21 @@ export default function Home() {
                       className="w-full min-h-28 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs"
                       value={(() => {
                         try {
-                          const d = descResult as any;
-                          const title = d?.title ? String(d.title) : "";
-                          const bullets = Array.isArray(d?.bulletPoints) ? (d.bulletPoints as string[]).map((b) => `• ${b}`).join("\n") : "";
-                          const text = d?.descriptionText ? String(d.descriptionText) : "";
-                          const brand = d?.brand ? `Marque: ${d.brand}\n` : "";
-                          const model = d?.model ? `Modèle: ${d.model}\n` : "";
+                          const d = descResult as Record<string, unknown>;
+                          const titleVal = d["title"];
+                          const title = typeof titleVal === "string" ? titleVal : "";
+                          const bulletsRaw = d["bulletPoints"];
+                          const bulletsArr = Array.isArray(bulletsRaw) ? (bulletsRaw as unknown[]) : [];
+                          const bullets = bulletsArr
+                            .filter((x): x is string => typeof x === "string")
+                            .map((b) => `• ${b}`)
+                            .join("\n");
+                          const textVal = d["descriptionText"];
+                          const text = typeof textVal === "string" ? textVal : "";
+                          const brandVal = d["brand"];
+                          const brand = typeof brandVal === "string" && brandVal ? `Marque: ${brandVal}\n` : "";
+                          const modelVal = d["model"];
+                          const model = typeof modelVal === "string" && modelVal ? `Modèle: ${modelVal}\n` : "";
                           return [title, brand + model, bullets, text].filter(Boolean).join("\n\n").trim() || JSON.stringify(d, null, 2);
                         } catch {
                           return JSON.stringify(descResult, null, 2);

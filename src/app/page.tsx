@@ -160,7 +160,6 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <span className="rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-brand-700 dark:bg-brand-900/20 dark:border-brand-900/30 dark:text-brand-300">MVP</span>
           </div>
         </div>
       </header>

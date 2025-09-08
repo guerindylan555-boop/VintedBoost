@@ -32,9 +32,37 @@ export default function ThemeToggle() {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">Dark Mode</span>
+      {enabled ? (
+        // Moon icon when dark enabled
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-5 w-5 text-brand-600 dark:text-brand-300"
+        >
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      ) : (
+        // Sun icon when light
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-5 w-5 text-brand-600"
+        >
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93 6.34 6.34M17.66 17.66 19.07 19.07M4.93 19.07 6.34 17.66M17.66 6.34 19.07 4.93" />
+        </svg>
+      )}
       <Toggle checked={enabled} onChange={setEnabled} ariaLabel="Basculer le thème sombre" />
     </div>
   );
 }
-

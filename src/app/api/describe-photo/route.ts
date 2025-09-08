@@ -35,7 +35,7 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   const { imageDataUrl, product, hints } = (await req.json()) as {
     imageDataUrl: string;
-    product?: { brand?: string | null; model?: string | null; gender?: string | null; size?: string | null };
+    product?: { brand?: string | null; model?: string | null; gender?: string | null; size?: string | null; condition?: string | null };
     hints?: string; // free text hints from UI if needed
   };
 
@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     model: product?.model || null,
     gender: product?.gender || null,
     size: product?.size || null,
+    condition: product?.condition || null,
   };
 
   const system =

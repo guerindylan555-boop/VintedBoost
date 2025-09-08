@@ -32,9 +32,9 @@ export default function Home() {
     { id: string; createdAt: number; source: string; results: string[] }[]
   >([]);
 
-  // Informations sur le vêtement (marque, modèle) + toggle d'activation
-  const [product, setProduct] = useState<{ brand: string; model: string }>(
-    { brand: "", model: "" }
+  // Informations sur le vêtement (marque, modèle, état) + toggle d'activation
+  const [product, setProduct] = useState<{ brand: string; model: string; condition?: string }>(
+    { brand: "", model: "", condition: "" }
   );
   const [productEnabled, setProductEnabled] = useState(false);
 
@@ -55,6 +55,7 @@ export default function Home() {
 
   const GENDERS = ["femme", "homme"] as const;
   const SIZES = ["xxs", "xs", "s", "m", "l", "xl", "xxl"] as const;
+  const CONDITIONS = ["neuf", "très bon état", "bon état", "satisfaisant"] as const;
   const POSES = ["face", "trois-quarts", "profil", "assis", "marche"] as const;
   const STYLES = ["professionnel", "amateur"] as const;
   const BACKGROUNDS = ["chambre", "salon", "studio", "extérieur"] as const;
@@ -77,34 +78,7 @@ export default function Home() {
     });
   }
 
-  async function generateDescriptionFromPhoto() {
-    if (!imageDataUrl) {
-      setDescError("Veuillez d'abord ajouter la photo du vêtement");
-      return;
-    }
-    setDescGenerating(true);
-    setDescError(null);
-    setDescResult(null);
-    try {
-      const res = await fetch("/api/describe-photo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageDataUrl,
-          product,
-          options,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Erreur de génération");
-      setDescResult(data);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setDescError(msg || "Erreur");
-    } finally {
-      setDescGenerating(false);
-    }
-  }
+  // (supprimé: doublon) — l'implémentation unique est plus bas
 
   async function generate() {
     if (!imageDataUrl) return;
@@ -173,6 +147,7 @@ export default function Home() {
                 model: product.model?.trim() || null,
                 gender: options.gender || null,
                 size: options.size || null,
+                condition: (product.condition?.trim?.() || null) as string | null,
               }
             : undefined,
         }),
@@ -293,6 +268,25 @@ export default function Home() {
                   onChange={(e) => setProduct((p) => ({ ...p, brand: e.target.value }))}
                   className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
                 />
+              </div>
+              <div>
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">État</div>
+                <div className="flex flex-wrap gap-2">
+                  {CONDITIONS.map((c) => (
+                    <button
+                      key={`prod-cond-${c}`}
+                      onClick={() => setProduct((p) => ({ ...p, condition: c }))}
+                      className={cx(
+                        "rounded-md border px-2 py-1 text-xs",
+                        product.condition === c
+                          ? "bg-brand-600 text-white border-brand-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                      )}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="model">Modèle</label>

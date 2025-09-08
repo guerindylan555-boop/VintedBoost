@@ -25,6 +25,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [outImages, setOutImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const resultRef = useRef<HTMLElement | null>(null);
   const [history, setHistory] = useState<
     { id: string; createdAt: number; source: string; results: string[] }[]
   >([]);
@@ -69,6 +70,10 @@ export default function Home() {
     setGenerating(true);
     setError(null);
     setOutImages([]);
+    try {
+      // Smoothly scroll to the results section
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch {}
     try {
       const imgRes = await fetch("/api/generate-images", {
         method: "POST",
@@ -394,9 +399,17 @@ export default function Home() {
             ) : null}
           </section>
 
-          <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
+          <section
+            ref={resultRef}
+            className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm"
+          >
             <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
-            {outImages.length === 0 ? (
+            {generating ? (
+              <div className="flex h-full min-h-40 flex-col items-center justify-center gap-3 text-sm text-gray-500 dark:text-gray-400" role="status" aria-live="polite">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent dark:border-brand-400 dark:border-t-transparent" aria-hidden="true" />
+                <div>Génération en cours…</div>
+              </div>
+            ) : outImages.length === 0 ? (
               <div className="flex h-full min-h-40 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
                 Aucune image générée pour l’instant.
               </div>

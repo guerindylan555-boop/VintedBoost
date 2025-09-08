@@ -11,10 +11,10 @@ export function normalizeOptions(
 ): Required<Pick<MannequinOptions, "gender" | "size" | "pose" | "background" | "style">> {
   const o = opts || {};
   const gender = (o.gender || "femme").toLowerCase();
-  const size = (o.size || "m").toLowerCase();
+  const size = (o.size || "xs").toLowerCase();
   const pose = (o.pose || "face").toLowerCase();
-  const background = (o.background || "studio").toLowerCase();
-  const style = (o.style || "professionnel").toLowerCase();
+  const background = (o.background || "chambre").toLowerCase();
+  const style = (o.style || "amateur").toLowerCase();
   return { gender, size, pose, background, style };
 }
 import { composePromptSegments } from "./promptSegments";

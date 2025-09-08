@@ -31,10 +31,10 @@ export default function Home() {
 
   const [options, setOptions] = useState<MannequinOptions>({
     gender: "femme",
-    size: "m",
+    size: "xs",
     pose: "face",
-    background: "studio",
-    style: "professionnel",
+    background: "chambre",
+    style: "amateur",
   });
   const [showPrompt, setShowPrompt] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(true);

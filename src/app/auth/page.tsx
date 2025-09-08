@@ -35,9 +35,9 @@ export default function AuthPage() {
         });
       }
       router.replace(next);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      const msg = e?.message || "Echec, vérifiez vos identifiants.";
+      const msg = e instanceof Error ? e.message : "Echec, vérifiez vos identifiants.";
       setError(msg);
       setLoading(false);
     }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildInstruction, type MannequinOptions } from "@/lib/prompt";
 import Toggle from "@/components/Toggle";
+import ThemeToggle from "@/components/ThemeToggle";
 
 function cx(...xs: Array<string | false | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -150,20 +151,23 @@ export default function Home() {
   }, [options]);
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white text-gray-900">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-100">
+    <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white text-gray-900 dark:from-gray-950 dark:to-gray-900 dark:text-gray-100">
+      <header className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b border-gray-100 dark:border-gray-800">
         <div className="mx-auto max-w-screen-md px-4 py-3 flex items-center justify-between">
           <div className="flex items-baseline gap-2">
             <h1 className="text-xl font-semibold uppercase tracking-widest">VINTEDBOOST</h1>
-            <span className="hidden sm:inline text-sm text-gray-500">Try‑On</span>
+            <span className="hidden sm:inline text-sm text-gray-500 dark:text-gray-400">Try‑On</span>
           </div>
-          <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-teal-700">MVP</span>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <span className="rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-brand-700 dark:bg-brand-900/20 dark:border-brand-900/30 dark:text-brand-300">MVP</span>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-screen-md p-4">
         <div className="grid gap-6 md:grid-cols-2">
-          <section className="rounded-2xl border border-gray-200 bg-white/70 backdrop-blur p-4 shadow-sm">
+          <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
             <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Votre photo</h2>
             <div
               onDragOver={(e) => {
@@ -178,7 +182,7 @@ export default function Home() {
               }}
               className={cx(
                 "relative w-full aspect-[4/3] rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden",
-                dragActive ? "border-teal-500 bg-teal-50/40" : "border-gray-300 bg-gray-50"
+                dragActive ? "border-brand-500 bg-brand-50/40 dark:bg-brand-900/20" : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
               )}
             >
               {imageDataUrl ? (
@@ -212,7 +216,7 @@ export default function Home() {
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-700">Options d’image</h3>
               <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Genre</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
                   <div className="flex flex-wrap gap-2">
                     {GENDERS.map((g) => (
                       <button
@@ -221,8 +225,8 @@ export default function Home() {
                         className={cx(
                           "rounded-md border px-2 py-1 text-xs uppercase",
                           options.gender === g
-                            ? "bg-teal-600 text-white border-teal-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                            ? "bg-brand-600 text-white border-brand-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
                         )}
                       >
                         {g}
@@ -232,7 +236,7 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Taille du vêtement</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Taille du vêtement</div>
                   <div className="flex flex-wrap gap-2">
                     {SIZES.map((s) => (
                       <button
@@ -241,8 +245,8 @@ export default function Home() {
                         className={cx(
                           "rounded-md border px-2 py-1 text-xs uppercase",
                           options.size === s
-                            ? "bg-teal-600 text-white border-teal-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                            ? "bg-brand-600 text-white border-brand-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
                         )}
                       >
                         {s.toUpperCase()}
@@ -252,7 +256,7 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Pose</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Pose</div>
                   <div className="flex flex-wrap gap-2">
                     {POSES.map((p) => (
                       <button
@@ -261,8 +265,8 @@ export default function Home() {
                         className={cx(
                           "rounded-md border px-2 py-1 text-xs uppercase",
                           options.pose === p
-                            ? "bg-teal-600 text-white border-teal-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                            ? "bg-brand-600 text-white border-brand-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
                         )}
                       >
                         {p}
@@ -272,7 +276,7 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Style d’image</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Style d’image</div>
                   <div className="flex flex-wrap gap-2">
                     {STYLES.map((s) => (
                       <button
@@ -281,8 +285,8 @@ export default function Home() {
                         className={cx(
                           "rounded-md border px-2 py-1 text-xs uppercase",
                           options.style === s
-                            ? "bg-teal-600 text-white border-teal-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                            ? "bg-brand-600 text-white border-brand-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
                         )}
                       >
                         {s}
@@ -292,7 +296,7 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Environnement / Fond</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Environnement / Fond</div>
                   <div className="flex flex-wrap gap-2">
                     {BACKGROUNDS.map((b) => (
                       <button
@@ -301,8 +305,8 @@ export default function Home() {
                         className={cx(
                           "rounded-md border px-2 py-1 text-xs uppercase",
                           options.background === b
-                            ? "bg-teal-600 text-white border-teal-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                            ? "bg-brand-600 text-white border-brand-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
                         )}
                       >
                         {b}
@@ -313,14 +317,14 @@ export default function Home() {
 
                 <div>
                   <div className="flex items-center justify-between">
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Texte d’instruction</div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Texte d’instruction</div>
                     <Toggle checked={showPrompt} onChange={setShowPrompt} ariaLabel="Afficher le texte d’instruction" />
                   </div>
                   {showPrompt && (
                     <textarea
                       readOnly
                       value={promptPreview}
-                      className="w-full min-h-24 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700"
+                      className="w-full min-h-24 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs text-gray-700 dark:text-gray-200"
                     />
                   )}
                 </div>
@@ -334,8 +338,8 @@ export default function Home() {
                 className={cx(
                   "inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition",
                   canGenerate
-                    ? "bg-teal-600 text-white hover:bg-teal-700"
-                    : "bg-gray-200 text-gray-500"
+                    ? "bg-brand-600 text-white hover:bg-brand-700"
+                    : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
                 )}
               >
                 {generating ? "Génération…" : "Générer l’image portée"}
@@ -347,21 +351,21 @@ export default function Home() {
                     setOutImages([]);
                     setError(null);
                   }}
-                  className="inline-flex shrink-0 items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="inline-flex shrink-0 items-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   Réinitialiser
                 </button>
               )}
             </div>
             {error ? (
-              <div className="mt-3 text-sm text-red-600">{error}</div>
+              <div className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</div>
             ) : null}
           </section>
 
-          <section className="rounded-2xl border border-gray-200 bg-white/70 backdrop-blur p-4 shadow-sm">
+          <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
             <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
             {outImages.length === 0 ? (
-              <div className="flex h-full min-h-40 items-center justify-center text-sm text-gray-500">
+              <div className="flex h-full min-h-40 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
                 Aucune image générée pour l’instant.
               </div>
             ) : (
@@ -371,7 +375,7 @@ export default function Home() {
                     key={i}
                     href={u}
                     download={`tryon_${i + 1}.png`}
-                    className="group relative block overflow-hidden rounded-xl border border-gray-200"
+                    className="group relative block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"
                     title="Télécharger"
                   >
                     <img
@@ -380,7 +384,7 @@ export default function Home() {
                       className="w-full object-cover"
                       style={{ aspectRatio: "4 / 5" }}
                     />
-                    <div className="absolute right-2 top-2 rounded-md bg-black/60 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
+                    <div className="absolute right-2 top-2 rounded-md bg-black/60 dark:bg-black/70 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
                       Télécharger
                     </div>
                   </a>
@@ -390,7 +394,7 @@ export default function Home() {
           </section>
         </div>
 
-        <section className="mt-6 rounded-2xl border border-gray-200 bg-white/70 backdrop-blur p-4 shadow-sm">
+        <section className="mt-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-base font-semibold uppercase tracking-wide">Historique</h2>
             {history.length > 0 && (
@@ -409,13 +413,13 @@ export default function Home() {
                       URL.revokeObjectURL(url);
                     } catch {}
                   }}
-                  className="text-xs rounded-md border border-gray-300 bg-white px-2 py-1 text-gray-700 hover:bg-gray-50"
+                  className="text-xs rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   Exporter
                 </button>
                 <button
                   onClick={() => setHistory([])}
-                  className="text-xs text-gray-500 hover:text-red-600"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                 >
                   Effacer
                 </button>
@@ -423,7 +427,7 @@ export default function Home() {
             )}
           </div>
           {history.length === 0 ? (
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
               Aucune génération enregistrée pour l’instant.
             </div>
           ) : (
@@ -436,18 +440,18 @@ export default function Home() {
                     setOutImages(h.results || []);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
-                  className="flex items-center gap-3 rounded-xl border border-gray-200 p-2 text-left hover:bg-gray-50"
+                  className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   <img
                     src={h.source}
                     alt="source"
-                    className="h-16 w-16 shrink-0 rounded-md border object-contain"
+                    className="h-16 w-16 shrink-0 rounded-md border object-contain dark:border-gray-700"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">
                       {new Date(h.createdAt).toLocaleString()}
                     </div>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                    <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                       <span>{h.results.length} résultat(s)</span>
                     </div>
                   </div>

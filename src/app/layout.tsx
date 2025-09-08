@@ -28,6 +28,12 @@ export default function RootLayout({
       <body
         className={`${poppins.variable} ${geistMono.variable} antialiased font-sans`}
       >
+        {/* Prevent theme flash on load */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(() => { try { const t = localStorage.getItem('theme'); const d = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches; const e = document.documentElement; d ? e.classList.add('dark') : e.classList.remove('dark'); } catch(_) {} })();`,
+          }}
+        />
         {children}
       </body>
     </html>

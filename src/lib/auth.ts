@@ -38,7 +38,7 @@ export const auth = betterAuth({
 
 // Attempt to run migrations on cold start when a database is configured.
 if (pool) {
-  // Fire and forget; errors will be logged server-side
-  // Tables are created if missing (users, sessions, accounts, verification)
-  auth.runMigrations?.().catch(() => {});
+  // Fire and forget; ensure core tables exist in Postgres
+  // Uses the internal context's runMigrations
+  void auth.$context.then((ctx) => ctx.runMigrations()).catch(() => {});
 }

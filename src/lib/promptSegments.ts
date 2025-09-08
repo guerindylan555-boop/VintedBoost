@@ -113,6 +113,41 @@ export function segmentPhotoTech(): string {
   );
 }
 
+function articleJeune(gender: string): string {
+  return gender.toLowerCase() === "homme" ? "un jeune homme" : "une jeune femme";
+}
+
+export function segmentAmateurScene(background: string, gender: string): string {
+  const subj = articleJeune(gender);
+  switch (background.toLowerCase()) {
+    case "chambre":
+      return (
+        `${subj} se tenant devant un miroir dans une chambre à coucher, ` +
+        `prenant un selfie avec son téléphone portable "iPhone 15 noir". ` +
+        `L'arrière-plan montre un lit en bois avec des draps clairs, ` +
+        `une table en bois avec des livres et quelques vêtements éparpillés ` +
+        `sur le sol en bois.`
+      );
+    case "salon":
+      return (
+        `${subj} dans un salon, smartphone à la main, ` +
+        `avec un canapé en tissu et une table basse visibles en arrière-plan; ` +
+        `quelques objets du quotidien discrets (livres, coussins), décor rangé.`
+      );
+    case "extérieur":
+      return (
+        `${subj} en extérieur, photo smartphone en cadrage vertical, ` +
+        `dans une rue ou un parc; arrière-plan urbain/verdure légèrement flou.`
+      );
+    case "studio":
+    default:
+      return (
+        `${subj} sur fond uni simple, pris au smartphone; ` +
+        `mise en scène minimale, éclairage diffus.`
+      );
+  }
+}
+
 export function composePromptSegments(
   args: { gender: string; size: string; pose: string; background: string; style: string },
   productReference?: string,
@@ -125,11 +160,11 @@ export function composePromptSegments(
   const pose = segmentPose(args.pose);
   const env = segmentBackground(args.background);
   const style = segmentStyle(args.style, args.background);
+  const amateurScene = args.style === "amateur" ? segmentAmateurScene(args.background, args.gender) : "";
   const vinted = segmentVinted();
   const photo = segmentPhotoTech();
-  return [start + ref + variant, size, pose, env, style, vinted, photo]
+  return [start + ref + variant, size, pose, env, style, amateurScene, vinted, photo]
     .map((s) => s.trim())
     .join(" ")
     .trim();
 }
-

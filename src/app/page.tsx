@@ -31,13 +31,11 @@ export default function Home() {
     { id: string; createdAt: number; source: string; results: string[] }[]
   >([]);
 
-  // Informations sur le vêtement (marque, modèle, taille, genre cible)
-  const [product, setProduct] = useState<{
-    brand: string;
-    model: string;
-    size: string;
-    gender: string;
-  }>({ brand: "", model: "", size: "xs", gender: "femme" });
+  // Informations sur le vêtement (marque, modèle) + toggle d'activation
+  const [product, setProduct] = useState<{ brand: string; model: string }>(
+    { brand: "", model: "" }
+  );
+  const [productEnabled, setProductEnabled] = useState(false);
 
   const [options, setOptions] = useState<MannequinOptions>({
     gender: "femme",
@@ -60,16 +58,9 @@ export default function Home() {
     [imageDataUrl, generating]
   );
 
-  const productReference = useMemo(() => {
-    const parts = [product.brand, product.model]
-      .map((s) => (s || "").trim())
-      .filter(Boolean);
-    return parts.join(" ");
-  }, [product.brand, product.model]);
-
   const promptPreview = useMemo(
-    () => buildInstruction(options || {}, productReference || undefined, "aperçu"),
-    [options, productReference]
+    () => buildInstruction(options || {}, undefined, "aperçu"),
+    [options]
   );
 
   function onFiles(files?: FileList | null) {
@@ -94,7 +85,7 @@ export default function Home() {
       const imgRes = await fetch("/api/generate-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageDataUrl, options, productReference: productReference || undefined, count: 1 }),
+        body: JSON.stringify({ imageDataUrl, options, count: 1 }),
       });
       const imgJson = await imgRes.json();
       if (!imgRes.ok) throw new Error(imgJson?.error || "Erreur images");
@@ -155,6 +146,10 @@ export default function Home() {
           setProduct((prev) => ({ ...prev, ...p }));
         } catch {}
       }
+      const rawProdEnabled = localStorage.getItem("vintedboost_product_enabled");
+      if (rawProdEnabled != null) {
+        setProductEnabled(rawProdEnabled === "true");
+      }
     } catch {}
     // Attempt to hydrate from server history as source of truth when available
     (async () => {
@@ -186,6 +181,12 @@ export default function Home() {
     } catch {}
   }, [product]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("vintedboost_product_enabled", String(productEnabled));
+    } catch {}
+  }, [productEnabled]);
+
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white text-gray-900 dark:from-gray-950 dark:to-gray-900 dark:text-gray-100">
       <header className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b border-gray-100 dark:border-gray-800">
@@ -206,7 +207,12 @@ export default function Home() {
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-1 md:row-start-1">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-base font-semibold uppercase tracking-wide">Infos vêtement</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300">Activer</span>
+                <Toggle checked={productEnabled} onChange={setProductEnabled} ariaLabel="Activer les infos vêtement" />
+              </div>
             </div>
+            {productEnabled && (
             <div className="grid grid-cols-1 gap-3">
               <div>
                 <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="brand">Marque</label>
@@ -231,15 +237,15 @@ export default function Home() {
                 />
               </div>
               <div>
-                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre cible</div>
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
                 <div className="flex flex-wrap gap-2">
                   {GENDERS.map((g) => (
                     <button
                       key={`prod-gender-${g}`}
-                      onClick={() => setProduct((p) => ({ ...p, gender: g }))}
+                      onClick={() => setOptions((o) => ({ ...o, gender: g }))}
                       className={cx(
                         "rounded-md border px-2 py-1 text-xs uppercase",
-                        product.gender === g
+                        options.gender === g
                           ? "bg-brand-600 text-white border-brand-600"
                           : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
                       )}
@@ -255,10 +261,10 @@ export default function Home() {
                   {SIZES.map((s) => (
                     <button
                       key={`prod-size-${s}`}
-                      onClick={() => setProduct((p) => ({ ...p, size: s }))}
+                      onClick={() => setOptions((o) => ({ ...o, size: s }))}
                       className={cx(
                         "rounded-md border px-2 py-1 text-xs uppercase",
-                        product.size === s
+                        options.size === s
                           ? "bg-brand-600 text-white border-brand-600"
                           : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
                       )}
@@ -269,6 +275,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            )}
           </section>
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-1 md:row-start-2">
             <div className="mb-3 flex items-center justify-between">
@@ -437,45 +444,49 @@ export default function Home() {
                   optionsOpen ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"
                 )}
               >
-                <div>
-                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
-                  <div className="flex flex-wrap gap-2">
-                    {GENDERS.map((g) => (
-                      <button
-                        key={g}
-                        onClick={() => setOptions((o) => ({ ...o, gender: g }))}
-                        className={cx(
-                          "rounded-md border px-2 py-1 text-xs uppercase",
-                          options.gender === g
-                            ? "bg-brand-600 text-white border-brand-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
-                        )}
-                      >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {!productEnabled && (
+                  <>
+                    <div>
+                      <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
+                      <div className="flex flex-wrap gap-2">
+                        {GENDERS.map((g) => (
+                          <button
+                            key={g}
+                            onClick={() => setOptions((o) => ({ ...o, gender: g }))}
+                            className={cx(
+                              "rounded-md border px-2 py-1 text-xs uppercase",
+                              options.gender === g
+                                ? "bg-brand-600 text-white border-brand-600"
+                                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                            )}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-                <div>
-                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Taille du vêtement</div>
-                  <div className="flex flex-wrap gap-2">
-                    {SIZES.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setOptions((o) => ({ ...o, size: s }))}
-                        className={cx(
-                          "rounded-md border px-2 py-1 text-xs uppercase",
-                          options.size === s
-                            ? "bg-brand-600 text-white border-brand-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
-                        )}
-                      >
-                        {s.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                    <div>
+                      <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Taille du vêtement</div>
+                      <div className="flex flex-wrap gap-2">
+                        {SIZES.map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => setOptions((o) => ({ ...o, size: s }))}
+                            className={cx(
+                              "rounded-md border px-2 py-1 text-xs uppercase",
+                              options.size === s
+                                ? "bg-brand-600 text-white border-brand-600"
+                                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                            )}
+                          >
+                            {s.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Pose</div>

@@ -33,16 +33,9 @@ function safeJsonParse<T>(text: string): T | null {
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const { imageDataUrl, product, options, hints } = (await req.json()) as {
+  const { imageDataUrl, product, hints } = (await req.json()) as {
     imageDataUrl: string;
-    product?: { brand?: string; model?: string };
-    options?: {
-      gender?: string;
-      size?: string;
-      style?: string;
-      background?: string;
-      pose?: string;
-    };
+    product?: { brand?: string | null; model?: string | null; gender?: string | null; size?: string | null };
     hints?: string; // free text hints from UI if needed
   };
 
@@ -53,37 +46,48 @@ export async function POST(req: NextRequest) {
   const meta = {
     brand: product?.brand || null,
     model: product?.model || null,
-    gender: options?.gender || null,
-    size: options?.size || null,
-    style: options?.style || null,
-    background: options?.background || null,
-    pose: options?.pose || null,
+    gender: product?.gender || null,
+    size: product?.size || null,
   };
 
   const system =
     "Tu es un assistant e-commerce Vinted. Rédige en FRANÇAIS clair, précis et vendeur sans superlatifs excessifs. Réponds UNIQUEMENT en JSON strict (json_object).";
 
   const instruction =
-    "À partir de la photo du vêtement NON porté et des métadonnées fournies (marque/modèle/genre/taille/style/fond/pose), analyse l’article et renvoie un JSON structuré pour une annonce Vinted. Ne mentionne pas de watermark ni logos. Décris l’article tel qu’il apparaît (matière, couleur, coupe, détails), sans inventer si tu n’es pas sûr.";
+    [
+      "À partir de la photo du vêtement NON porté et des informations de la carte ‘Infos vêtement’ (marque, modèle, genre, taille quand présents), propose TROIS descriptions Vinted distinctes.",
+      "Respecte ces consignes (inspirées des meilleures pratiques Vinted) :",
+      "- Structure claire: titre concis (type d’article + marque + taille/atout), puis détails (matière, couleur, coupe), usages/occasions, avantages concrets, état et défauts éventuels, conclusion rassurante (envoi soigné, dispo pour questions).",
+      "- Ton: amical et professionnel, positif sans superlatifs vagues; phrases courtes, honnêtes et précises; orthographe soignée.",
+      "- Mots-clés/hashtags: inclure 3–5 mots-clés pertinents (marque, catégorie, style, saison/occasion).",
+      "- Transparence: ne rien inventer; si une info est incertaine sur la photo, rester neutre ou omettre.",
+    ].join(" ");
 
-  const requiredJsonShape = `Retourne strictement un JSON avec les clés suivantes:
+  const requiredJsonShape = `Retourne strictement un JSON avec la forme suivante :
 {
-  "title": string,
-  "brand": string | null,
-  "model": string | null,
-  "category": string | null,
-  "condition": string, // neuf, très bon état, bon état, satisfaisant
-  "colors": string[] | null, // couleurs dominantes
-  "materials": string[] | null,
-  "measurements": { "longueur": string|null, "poitrine": string|null, "epaules": string|null, "manches": string|null },
-  "defects": string[],
-  "care": string[],
-  "keywords": string[],
-  "bulletPoints": string[],
-  "descriptionText": string
+  "proposals": [
+    {
+      "title": string,
+      "brand": string | null,
+      "model": string | null,
+      "category": string | null,
+      "condition": string, // neuf, très bon état, bon état, satisfaisant
+      "colors": string[] | null, // couleurs dominantes si visibles
+      "materials": string[] | null, // si visibles
+      "measurements": { "longueur": string|null, "poitrine": string|null, "epaules": string|null, "manches": string|null },
+      "defects": string[], // décrire honnêtement s’il y en a (sinon [] )
+      "care": string[],
+      "keywords": string[],
+      "hashtags": string[], // 3-5 tags pertinents
+      "bulletPoints": string[],
+      "descriptionText": string // 3–5 phrases, ton naturel, clair et vendeur
+    },
+    { ... },
+    { ... }
+  ]
 }`;
 
-  const metaText = `Métadonnées: ${JSON.stringify(meta)}\nIndices: ${hints || "(aucun)"}`;
+  const metaText = `Infos vêtement: ${JSON.stringify(meta)}\nIndices: ${hints || "(aucun)"}`;
 
   const messages: OpenRouterChatMessage[] = [
     { role: "system", content: system },
@@ -117,4 +121,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

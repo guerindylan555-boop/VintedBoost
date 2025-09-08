@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildInstruction, type MannequinOptions } from "@/lib/prompt";
+import Image from "next/image";
 import Toggle from "@/components/Toggle";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -152,6 +153,40 @@ export default function Home() {
     }
   }
 
+  async function generateDescriptionFromPhoto() {
+    if (!imageDataUrl) {
+      setDescError("Veuillez d'abord ajouter la photo du vêtement");
+      return;
+    }
+    setDescGenerating(true);
+    setDescError(null);
+    setDescResult(null);
+    try {
+      const res = await fetch("/api/describe-photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageDataUrl,
+          product: productEnabled
+            ? {
+                brand: product.brand?.trim() || null,
+                model: product.model?.trim() || null,
+                gender: options.gender || null,
+                size: options.size || null,
+              }
+            : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur de génération");
+      setDescResult(data);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setDescError(msg || "Erreur");
+    } finally {
+      setDescGenerating(false);
+    }
+  }
   useEffect(() => {
     try {
       const rawHist = localStorage.getItem("vintedboost_history");
@@ -335,6 +370,26 @@ export default function Home() {
                       value={(() => {
                         try {
                           const d = descResult as Record<string, unknown>;
+                          const proposalsRaw = d["proposals"];
+                          if (Array.isArray(proposalsRaw) && proposalsRaw.length) {
+                            const blocks = proposalsRaw.slice(0, 3).map((p, idx) => {
+                              const obj = (p ?? {}) as Record<string, unknown>;
+                              const title = typeof obj["title"] === "string" ? (obj["title"] as string) : "";
+                              const bpRaw = obj["bulletPoints"];
+                              const bpArr = Array.isArray(bpRaw) ? (bpRaw as unknown[]) : [];
+                              const bullets = bpArr
+                                .filter((x): x is string => typeof x === "string")
+                                .map((b) => `• ${b}`)
+                                .join("\n");
+                              const text = typeof obj["descriptionText"] === "string" ? (obj["descriptionText"] as string) : "";
+                              const brand = typeof obj["brand"] === "string" && obj["brand"] ? `Marque: ${obj["brand"]}\n` : "";
+                              const model = typeof obj["model"] === "string" && obj["model"] ? `Modèle: ${obj["model"]}\n` : "";
+                              return [`Proposition ${idx + 1}`, title, brand + model, bullets, text]
+                                .filter(Boolean)
+                                .join("\n\n");
+                            });
+                            return blocks.join("\n\n\n");
+                          }
                           const titleVal = d["title"];
                           const title = typeof titleVal === "string" ? titleVal : "";
                           const bulletsRaw = d["bulletPoints"];
@@ -458,10 +513,13 @@ export default function Home() {
               )}
             >
               {imageDataUrl ? (
-                <img
+                <Image
                   src={imageDataUrl}
                   alt="source"
-                  className="h-full w-full object-contain"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-contain"
+                  unoptimized
                 />
               ) : (
                 <div className="text-center text-sm text-gray-600">
@@ -689,13 +747,16 @@ export default function Home() {
                     href={u}
                     download={`tryon_${i + 1}.png`}
                     className="group relative block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"
+                    style={{ aspectRatio: "4 / 5" }}
                     title="Télécharger"
                   >
-                    <img
+                    <Image
                       src={u}
                       alt={`sortie ${i + 1}`}
-                      className="w-full object-cover"
-                      style={{ aspectRatio: "4 / 5" }}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      className="object-cover"
+                      unoptimized
                     />
                     <div className="absolute right-2 top-2 rounded-md bg-black/60 dark:bg-black/70 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
                       Télécharger
@@ -755,10 +816,13 @@ export default function Home() {
                   }}
                   className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
-                  <img
+                  <Image
                     src={h.source}
                     alt="source"
-                    className="h-16 w-16 shrink-0 rounded-md border object-contain dark:border-gray-700"
+                    width={64}
+                    height={64}
+                    className="shrink-0 rounded-md border object-contain dark:border-gray-700"
+                    unoptimized
                   />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">

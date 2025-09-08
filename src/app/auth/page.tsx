@@ -4,6 +4,9 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
+// Ensure this route is never statically prerendered
+export const dynamic = "force-dynamic";
+
 export default function AuthPage() {
   const router = useRouter();
   const sp = useSearchParams();

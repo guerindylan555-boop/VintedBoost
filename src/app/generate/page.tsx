@@ -28,7 +28,7 @@ export default function GeneratePage() {
   const [style, setStyle] = useState("");
   const [envOn, setEnvOn] = useState(false);
   const [environment, setEnvironment] = useState("");
-  const [language, setLanguage] = useState("fr");
+  const [count, setCount] = useState(1);
 
   const canGenerate = useMemo(() => Boolean(imageDataUrl), [imageDataUrl]);
 
@@ -47,7 +47,7 @@ export default function GeneratePage() {
       pose: poseOn ? pose : "",
       style: styleOn ? style : "",
       environment: envOn ? environment : "",
-      language,
+      count,
     };
     try {
       sessionStorage.setItem("vb_generate_payload", JSON.stringify(payload));
@@ -62,12 +62,12 @@ export default function GeneratePage() {
           <button onClick={() => router.back()} className="text-sm text-gray-600">
             Retour
           </button>
-          <h1 className="text-base font-semibold">New listing</h1>
+          <h1 className="text-base font-semibold">Nouvelle annonce</h1>
           <button
             onClick={() => router.push("/history")}
             className="text-sm text-blue-600"
           >
-            History
+            Historique
           </button>
         </div>
       </header>
@@ -98,7 +98,7 @@ export default function GeneratePage() {
               />
             ) : (
               <div className="text-center text-sm text-gray-600">
-                Upload 1 photo (non-worn)
+                Téléchargez 1 photo (non portée)
                 <div className="mt-2">ou</div>
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -135,16 +135,11 @@ export default function GeneratePage() {
                   type="text"
                   value={pose}
                   onChange={(e) => setPose(e.target.value)}
-                  placeholder="Describe pose"
+                  placeholder="Décrivez la pose"
                   className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
                 />
                 <div className="flex flex-wrap gap-2 text-xs">
-                  {[
-                    "Frontal",
-                    "3/4",
-                    "Profile",
-                    "Hands in pockets",
-                  ].map((p) => (
+                  {["Face", "3/4", "Profil", "Mains dans les poches"].map((p) => (
                     <button
                       key={p}
                       onClick={() => setPose(p)}
@@ -174,22 +169,20 @@ export default function GeneratePage() {
                   type="text"
                   value={style}
                   onChange={(e) => setStyle(e.target.value)}
-                  placeholder="Image style"
+                  placeholder="Style d'image"
                   className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
                 />
                 <div className="flex flex-wrap gap-2 text-xs">
-                  {["Studio neutral", "Editorial", "E-commerce clean"].map(
-                    (p) => (
-                      <button
-                        key={p}
-                        onClick={() => setStyle(p)}
-                        className="rounded-full border border-gray-200 px-2 py-1"
-                        type="button"
-                      >
-                        {p}
-                      </button>
-                    )
-                  )}
+                  {["Studio neutre", "Éditorial", "E-commerce épuré"].map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setStyle(p)}
+                      className="rounded-full border border-gray-200 px-2 py-1"
+                      type="button"
+                    >
+                      {p}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -202,7 +195,7 @@ export default function GeneratePage() {
                 checked={envOn}
                 onChange={(e) => setEnvOn(e.target.checked)}
               />
-              Environment
+              Environnement
             </label>
             {envOn && (
               <div className="mt-2 space-y-2">
@@ -210,15 +203,11 @@ export default function GeneratePage() {
                   type="text"
                   value={environment}
                   onChange={(e) => setEnvironment(e.target.value)}
-                  placeholder="Background/environment"
+                  placeholder="Arrière-plan / environnement"
                   className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
                 />
                 <div className="flex flex-wrap gap-2 text-xs">
-                  {[
-                    "Light grey studio",
-                    "White sweep",
-                    "Soft shadow",
-                  ].map((p) => (
+                  {["Studio gris clair", "Fond blanc", "Ombre douce"].map((p) => (
                     <button
                       key={p}
                       onClick={() => setEnvironment(p)}
@@ -234,14 +223,21 @@ export default function GeneratePage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Language</label>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
+              <input type="checkbox" disabled /> Description
+              <span className="text-xs">(arrive bientôt)</span>
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Nombre d&apos;images</label>
             <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              value={count}
+              onChange={(e) => setCount(Number(e.target.value))}
               className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
             >
-              <option value="fr">French</option>
-              <option value="en">English</option>
+              <option value={1}>1</option>
+              <option value={2}>2</option>
             </select>
           </div>
         </section>
@@ -259,13 +255,13 @@ export default function GeneratePage() {
                 : "bg-gray-200 text-gray-500"
             )}
           >
-            Generate images + description
+            Générer les images
           </button>
           <button
             type="button"
             className="mt-2 block w-full text-center text-sm text-gray-500"
           >
-            Advanced
+            Avancé
           </button>
         </div>
       </footer>

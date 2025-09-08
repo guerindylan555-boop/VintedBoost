@@ -3,19 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 
-interface Description {
-  title?: string;
-  bulletPoints?: string[];
-  descriptionText?: string;
-  [key: string]: unknown;
-}
-
 interface HistoryItem {
   id: string;
   createdAt: number;
   source: string;
   results: string[];
-  description?: Description;
 }
 
 export default function EditorPage() {
@@ -100,9 +92,9 @@ export default function EditorPage() {
       <header className="sticky top-0 z-10 border-b border-gray-100 bg-white/70 backdrop-blur">
         <div className="mx-auto flex max-w-screen-sm items-center justify-between px-4 py-3">
           <button onClick={() => router.push("/results")} className="text-sm text-gray-600">
-            Back
+            Retour
           </button>
-          <h1 className="text-base font-semibold">Edit image</h1>
+          <h1 className="text-base font-semibold">Modifier l&apos;image</h1>
           <div className="text-sm text-gray-600">v{version}</div>
         </div>
       </header>
@@ -110,7 +102,7 @@ export default function EditorPage() {
       <main className="mx-auto w-full max-w-screen-sm flex-1 p-4 pb-24 space-y-6">
         <img
           src={img}
-          alt="edit"
+          alt="édition"
           className="w-full rounded-lg border object-cover"
           style={{ aspectRatio: "4/5" }}
         />
@@ -161,7 +153,7 @@ export default function EditorPage() {
                 checked={envOn}
                 onChange={(e) => setEnvOn(e.target.checked)}
               />
-              Environment
+              Environnement
             </label>
             {envOn && (
               <input
@@ -181,13 +173,13 @@ export default function EditorPage() {
             onClick={generateVariation}
             className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
-            Generate variation
+            Générer une variation
           </button>
           <button
             onClick={saveAndReplace}
             className="w-full text-sm text-gray-600"
           >
-            Save & replace
+            Sauvegarder et remplacer
           </button>
         </div>
       </footer>

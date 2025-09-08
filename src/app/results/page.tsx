@@ -3,19 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-interface Description {
-  title?: string;
-  bulletPoints?: string[];
-  descriptionText?: string;
-  [key: string]: unknown;
-}
-
 interface HistoryItem {
   id: string;
   createdAt: number;
   source: string;
   results: string[];
-  description?: Description;
 }
 
 interface GenPayload {
@@ -23,14 +15,14 @@ interface GenPayload {
   pose?: string;
   style?: string;
   environment?: string;
-  language?: string;
+  count?: number;
 }
 
 export default function ResultsPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [imageStep, setImageStep] = useState(0);
-  const [description, setDescription] = useState<Description | null>(null);
+  const [total, setTotal] = useState(1);
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,25 +33,14 @@ export default function ResultsPage() {
       return;
     }
     const payload: GenPayload = JSON.parse(raw);
+    const count = payload.count || 1;
+    setTotal(count);
     async function run() {
       setStep(1); // analyzing photos
       await new Promise((r) => setTimeout(r, 300));
-      setStep(2); // building product details
-      let desc: Description | null = null;
-      try {
-        const res = await fetch("/api/describe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productReference: "", options: {}, hints: "" }),
-        });
-        desc = await res.json();
-      } catch {}
-      setDescription(desc);
-      setStep(3); // writing description
-      await new Promise((r) => setTimeout(r, 300));
-      setStep(4); // creating images
+      setStep(2); // creating images
       const imgs: string[] = [];
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < count; i++) {
         setImageStep(i + 1);
         try {
           const res = await fetch("/api/generate-images", {
@@ -82,12 +63,11 @@ export default function ResultsPage() {
         } catch {}
       }
       setImages(imgs);
-      const item = {
+      const item: HistoryItem = {
         id: `${Date.now()}`,
         createdAt: Date.now(),
         source: payload.imageDataUrl,
         results: imgs,
-        description: desc,
       };
       try {
         localStorage.setItem("vintedboost_last", JSON.stringify(item));
@@ -107,10 +87,10 @@ export default function ResultsPage() {
       <header className="sticky top-0 z-10 border-b border-gray-100 bg-white/70 backdrop-blur">
         <div className="mx-auto flex max-w-screen-sm items-center justify-between px-4 py-3">
           <button onClick={() => router.push("/generate")} className="text-sm text-gray-600">
-            Close
+            Fermer
           </button>
           <h1 className="text-base font-semibold">
-            {loading ? "Generating…" : "Results"}
+            {loading ? "Génération..." : "Résultats"}
           </h1>
           <div className="w-8" />
         </div>
@@ -120,71 +100,48 @@ export default function ResultsPage() {
         {loading ? (
           <div className="space-y-4">
             <ol className="space-y-1 text-sm">
-              <li className={step >= 1 ? "text-gray-900" : "text-gray-400"}>1. Analyzing photos</li>
-              <li className={step >= 2 ? "text-gray-900" : "text-gray-400"}>2. Building product details</li>
-              <li className={step >= 3 ? "text-gray-900" : "text-gray-400"}>3. Writing description</li>
-              <li className={step >= 4 ? "text-gray-900" : "text-gray-400"}>
-                4. Creating images ({imageStep}/3)
+              <li className={step >= 1 ? "text-gray-900" : "text-gray-400"}>1. Analyse des photos</li>
+              <li className={step >= 2 ? "text-gray-900" : "text-gray-400"}>
+                2. Création des images ({imageStep}/{total})
               </li>
             </ol>
-            <div className="h-24 w-full animate-pulse rounded-md bg-gray-200" />
-            <div className="grid grid-cols-3 gap-2">
-              <div className="aspect-[4/5] w-full animate-pulse rounded-md bg-gray-200" />
-              <div className="aspect-[4/5] w-full animate-pulse rounded-md bg-gray-200" />
-              <div className="aspect-[4/5] w-full animate-pulse rounded-md bg-gray-200" />
+            <div className={`grid gap-2 ${total === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {Array.from({ length: total }).map((_, i) => (
+                <div key={i} className="aspect-[4/5] w-full animate-pulse rounded-md bg-gray-200" />
+              ))}
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
-            {description && (
-              <div className="rounded-2xl border border-gray-200 bg-white/70 backdrop-blur p-4 shadow-sm">
-                <h2 className="text-sm font-semibold mb-2">{description.title || "Description"}</h2>
-                {Array.isArray(description.bulletPoints) && (
-                  <ul className="list-disc pl-5 text-sm">
-                    {description.bulletPoints.map((b: string, i: number) => (
-                      <li key={i}>{b}</li>
-                    ))}
-                  </ul>
-                )}
-                <button
-                  onClick={() => navigator.clipboard.writeText(description.descriptionText || "")}
-                  className="mt-2 text-sm text-blue-600"
-                >
-                  Copy
-                </button>
-              </div>
-            )}
-            <div className="space-y-3">
-              {images.map((img, i) => (
-                <div key={i} className="relative">
-                  <img
-                    src={img}
-                    alt={`generated ${i + 1}`}
-                    className="w-full rounded-lg border object-cover"
-                    style={{ aspectRatio: "4/5" }}
-                  />
-                  <div className="mt-1 flex gap-2 text-xs">
-                    <button
-                      onClick={() => {
-                        const a = document.createElement("a");
-                        a.href = img;
-                        a.download = `image_${i + 1}.png`;
-                        a.click();
-                      }}
-                      className="text-blue-600"
-                    >
-                      Download
-                    </button>
-                    <button
-                      onClick={() => router.push(`/editor/${i}`)}
-                      className="text-blue-600"
-                    >
-                      Continue editing
-                    </button>
-                  </div>
+          <div className="space-y-3">
+            {images.map((img, i) => (
+              <div key={i} className="relative">
+                <img
+                  src={img}
+                  alt={`généré ${i + 1}`}
+                  className="w-full rounded-lg border object-cover"
+                  style={{ aspectRatio: "4/5" }}
+                />
+                <div className="mt-1 flex gap-2 text-xs">
+                  <button
+                    onClick={() => {
+                      const a = document.createElement("a");
+                      a.href = img;
+                      a.download = `image_${i + 1}.png`;
+                      a.click();
+                    }}
+                    className="text-blue-600"
+                  >
+                    Télécharger
+                  </button>
+                  <button
+                    onClick={() => router.push(`/editor/${i}`)}
+                    className="text-blue-600"
+                  >
+                    Continuer l&apos;édition
+                  </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         )}
       </main>
@@ -192,9 +149,9 @@ export default function ResultsPage() {
       <footer className="sticky bottom-0 border-t border-gray-200 bg-white/70 backdrop-blur">
         <div className="mx-auto max-w-screen-sm px-4 py-3 flex flex-col gap-2">
           <button className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-            Save listing
+            Enregistrer l&apos;annonce
           </button>
-          <button className="w-full text-sm text-gray-600">Download all (ZIP)</button>
+          <button className="w-full text-sm text-gray-600">Tout télécharger (ZIP)</button>
         </div>
       </footer>
     </div>

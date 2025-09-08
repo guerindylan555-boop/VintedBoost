@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildInstruction, type MannequinOptions } from "@/lib/prompt";
+import Toggle from "@/components/Toggle";
 
 function cx(...xs: Array<string | false | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -150,17 +151,20 @@ export default function Home() {
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white text-gray-900">
-      <header className="sticky top-0 z-10 bg-white/70 backdrop-blur border-b border-gray-100">
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-100">
         <div className="mx-auto max-w-screen-md px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-semibold tracking-tight">VintedBoost — Try‑On</h1>
-          <div className="text-xs text-gray-500">MVP</div>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-xl font-semibold uppercase tracking-widest">VINTEDBOOST</h1>
+            <span className="hidden sm:inline text-sm text-gray-500">Try‑On</span>
+          </div>
+          <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-teal-700">MVP</span>
         </div>
       </header>
 
       <main className="mx-auto max-w-screen-md p-4">
         <div className="grid gap-6 md:grid-cols-2">
           <section className="rounded-2xl border border-gray-200 bg-white/70 backdrop-blur p-4 shadow-sm">
-            <h2 className="text-base font-semibold mb-3">Votre photo</h2>
+            <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Votre photo</h2>
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -174,7 +178,7 @@ export default function Home() {
               }}
               className={cx(
                 "relative w-full aspect-[4/3] rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden",
-                dragActive ? "border-blue-500 bg-blue-50/40" : "border-gray-300 bg-gray-50"
+                dragActive ? "border-teal-500 bg-teal-50/40" : "border-gray-300 bg-gray-50"
               )}
             >
               {imageDataUrl ? (
@@ -205,19 +209,19 @@ export default function Home() {
             </div>
 
             <div className="mt-4">
-              <h3 className="text-sm font-medium text-gray-900 mb-2">Options d’image</h3>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-700">Options d’image</h3>
               <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <div className="mb-1 text-xs text-gray-600">Genre</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Genre</div>
                   <div className="flex flex-wrap gap-2">
                     {GENDERS.map((g) => (
                       <button
                         key={g}
                         onClick={() => setOptions((o) => ({ ...o, gender: g }))}
                         className={cx(
-                          "rounded-md border px-2 py-1 text-xs",
+                          "rounded-md border px-2 py-1 text-xs uppercase",
                           options.gender === g
-                            ? "bg-blue-600 text-white border-blue-600"
+                            ? "bg-teal-600 text-white border-teal-600"
                             : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                         )}
                       >
@@ -228,16 +232,16 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-xs text-gray-600">Taille du vêtement</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Taille du vêtement</div>
                   <div className="flex flex-wrap gap-2">
                     {SIZES.map((s) => (
                       <button
                         key={s}
                         onClick={() => setOptions((o) => ({ ...o, size: s }))}
                         className={cx(
-                          "rounded-md border px-2 py-1 text-xs",
+                          "rounded-md border px-2 py-1 text-xs uppercase",
                           options.size === s
-                            ? "bg-blue-600 text-white border-blue-600"
+                            ? "bg-teal-600 text-white border-teal-600"
                             : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                         )}
                       >
@@ -248,16 +252,16 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-xs text-gray-600">Pose</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Pose</div>
                   <div className="flex flex-wrap gap-2">
                     {POSES.map((p) => (
                       <button
                         key={p}
                         onClick={() => setOptions((o) => ({ ...o, pose: p }))}
                         className={cx(
-                          "rounded-md border px-2 py-1 text-xs",
+                          "rounded-md border px-2 py-1 text-xs uppercase",
                           options.pose === p
-                            ? "bg-blue-600 text-white border-blue-600"
+                            ? "bg-teal-600 text-white border-teal-600"
                             : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                         )}
                       >
@@ -268,16 +272,16 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-xs text-gray-600">Style d’image</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Style d’image</div>
                   <div className="flex flex-wrap gap-2">
                     {STYLES.map((s) => (
                       <button
                         key={s}
                         onClick={() => setOptions((o) => ({ ...o, style: s }))}
                         className={cx(
-                          "rounded-md border px-2 py-1 text-xs",
+                          "rounded-md border px-2 py-1 text-xs uppercase",
                           options.style === s
-                            ? "bg-blue-600 text-white border-blue-600"
+                            ? "bg-teal-600 text-white border-teal-600"
                             : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                         )}
                       >
@@ -288,16 +292,16 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <div className="mb-1 text-xs text-gray-600">Environnement / Fond</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">Environnement / Fond</div>
                   <div className="flex flex-wrap gap-2">
                     {BACKGROUNDS.map((b) => (
                       <button
                         key={b}
                         onClick={() => setOptions((o) => ({ ...o, background: b }))}
                         className={cx(
-                          "rounded-md border px-2 py-1 text-xs",
+                          "rounded-md border px-2 py-1 text-xs uppercase",
                           options.background === b
-                            ? "bg-blue-600 text-white border-blue-600"
+                            ? "bg-teal-600 text-white border-teal-600"
                             : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                         )}
                       >
@@ -308,14 +312,10 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <label className="mb-1 flex items-center gap-2 text-xs text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={showPrompt}
-                      onChange={(e) => setShowPrompt(e.target.checked)}
-                    />
-                    Afficher le texte d’instruction envoyé au modèle
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600">Texte d’instruction</div>
+                    <Toggle checked={showPrompt} onChange={setShowPrompt} ariaLabel="Afficher le texte d’instruction" />
+                  </div>
                   {showPrompt && (
                     <textarea
                       readOnly
@@ -334,7 +334,7 @@ export default function Home() {
                 className={cx(
                   "inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition",
                   canGenerate
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    ? "bg-teal-600 text-white hover:bg-teal-700"
                     : "bg-gray-200 text-gray-500"
                 )}
               >
@@ -359,7 +359,7 @@ export default function Home() {
           </section>
 
           <section className="rounded-2xl border border-gray-200 bg-white/70 backdrop-blur p-4 shadow-sm">
-            <h2 className="text-base font-semibold mb-3">Résultat</h2>
+            <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
             {outImages.length === 0 ? (
               <div className="flex h-full min-h-40 items-center justify-center text-sm text-gray-500">
                 Aucune image générée pour l’instant.
@@ -392,7 +392,7 @@ export default function Home() {
 
         <section className="mt-6 rounded-2xl border border-gray-200 bg-white/70 backdrop-blur p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold">Historique</h2>
+            <h2 className="text-base font-semibold uppercase tracking-wide">Historique</h2>
             {history.length > 0 && (
               <div className="flex items-center gap-2">
                 <button

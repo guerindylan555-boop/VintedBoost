@@ -47,6 +47,11 @@ export default function Home() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(true);
 
+  // Génération description Vinted depuis la carte produit
+  const [descGenerating, setDescGenerating] = useState(false);
+  const [descError, setDescError] = useState<string | null>(null);
+  const [descResult, setDescResult] = useState<Record<string, unknown> | null>(null);
+
   const GENDERS = ["femme", "homme"] as const;
   const SIZES = ["xxs", "xs", "s", "m", "l", "xl", "xxl"] as const;
   const POSES = ["face", "trois-quarts", "profil", "assis", "marche"] as const;
@@ -69,6 +74,35 @@ export default function Home() {
     fileToDataURL(file).then(setImageDataUrl).catch(() => {
       setError("Impossible de lire l'image");
     });
+  }
+
+  async function generateDescriptionFromPhoto() {
+    if (!imageDataUrl) {
+      setDescError("Veuillez d'abord ajouter la photo du vêtement");
+      return;
+    }
+    setDescGenerating(true);
+    setDescError(null);
+    setDescResult(null);
+    try {
+      const res = await fetch("/api/describe-photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageDataUrl,
+          product,
+          options,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Erreur de génération");
+      setDescResult(data);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setDescError(msg || "Erreur");
+    } finally {
+      setDescGenerating(false);
+    }
   }
 
   async function generate() {
@@ -273,6 +307,47 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={generateDescriptionFromPhoto}
+                  disabled={!imageDataUrl || descGenerating}
+                  className={cx(
+                    "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold shadow-sm",
+                    imageDataUrl && !descGenerating
+                      ? "bg-brand-600 text-white hover:bg-brand-700"
+                      : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                  )}
+                  title={!imageDataUrl ? "Ajoutez d'abord la photo" : "Générer description"}
+                >
+                  {descGenerating ? "Génération…" : "Générer description Vinted"}
+                </button>
+                {descError ? (
+                  <div className="mt-2 text-xs text-red-600 dark:text-red-400">{descError}</div>
+                ) : null}
+                {descResult ? (
+                  <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/60 p-2">
+                    <div className="text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1">Description générée</div>
+                    <textarea
+                      readOnly
+                      className="w-full min-h-28 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs"
+                      value={(() => {
+                        try {
+                          const d = descResult as any;
+                          const title = d?.title ? String(d.title) : "";
+                          const bullets = Array.isArray(d?.bulletPoints) ? (d.bulletPoints as string[]).map((b) => `• ${b}`).join("\n") : "";
+                          const text = d?.descriptionText ? String(d.descriptionText) : "";
+                          const brand = d?.brand ? `Marque: ${d.brand}\n` : "";
+                          const model = d?.model ? `Modèle: ${d.model}\n` : "";
+                          return [title, brand + model, bullets, text].filter(Boolean).join("\n\n").trim() || JSON.stringify(d, null, 2);
+                        } catch {
+                          return JSON.stringify(descResult, null, 2);
+                        }
+                      })()}
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
             )}

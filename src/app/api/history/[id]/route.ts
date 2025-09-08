@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
-import { getOrCreateSession } from "@/lib/session";
+import { getSessionId, setSessionCookie } from "@/lib/session";
+import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,12 @@ export async function GET(
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
-  const sessionId = getOrCreateSession();
+  let sessionId = await getSessionId();
+  let newSessionId: string | null = null;
+  if (!sessionId) {
+    sessionId = randomUUID();
+    newSessionId = sessionId;
+  }
   await ensureTable();
   const { rows } = await sql<{
     id: string;
@@ -42,10 +48,12 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const r = rows[0];
-  return NextResponse.json({
+  const res = NextResponse.json({
     id: r.id,
     createdAt: r.created_at,
     source: r.source_image,
     results: Array.isArray(r.results) ? (r.results as string[]) : [],
   });
+  if (newSessionId) setSessionCookie(res, newSessionId);
+  return res;
 }

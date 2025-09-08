@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
-import { getOrCreateSession } from "@/lib/session";
+import { getSessionId, setSessionCookie } from "@/lib/session";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
@@ -18,7 +18,12 @@ async function ensureTable() {
 }
 
 export async function GET() {
-  const sessionId = getOrCreateSession();
+  let sessionId = await getSessionId();
+  let newSessionId: string | null = null;
+  if (!sessionId) {
+    sessionId = randomUUID();
+    newSessionId = sessionId;
+  }
   await ensureTable();
   const { rows } = await sql<{
     id: string;
@@ -32,7 +37,7 @@ export async function GET() {
     ORDER BY created_at DESC
     LIMIT 50
   `;
-  return NextResponse.json({
+  const res = NextResponse.json({
     items: rows.map((r) => ({
       id: r.id,
       createdAt: r.created_at,
@@ -40,10 +45,17 @@ export async function GET() {
       results: Array.isArray(r.results) ? (r.results as string[]) : [],
     })),
   });
+  if (newSessionId) setSessionCookie(res, newSessionId);
+  return res;
 }
 
 export async function POST(req: NextRequest) {
-  const sessionId = getOrCreateSession();
+  let sessionId = await getSessionId();
+  let newSessionId: string | null = null;
+  if (!sessionId) {
+    sessionId = randomUUID();
+    newSessionId = sessionId;
+  }
   const body = (await req.json()) as {
     id?: string;
     source: string;
@@ -75,5 +87,7 @@ export async function POST(req: NextRequest) {
     ON CONFLICT (id) DO NOTHING
   `;
 
-  return NextResponse.json({ ok: true, id });
+  const res = NextResponse.json({ ok: true, id });
+  if (newSessionId) setSessionCookie(res, newSessionId);
+  return res;
 }

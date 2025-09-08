@@ -32,6 +32,14 @@ export const auth = betterAuth({
     // You can wire forgot-password emails later via sendResetPassword
   },
 
+  // Social providers
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    },
+  },
+
   // Sensible defaults; you can further tune cookies, session TTL, etc.
   // secret read from BETTER_AUTH_SECRET / AUTH_SECRET or uses a dev default.
 });

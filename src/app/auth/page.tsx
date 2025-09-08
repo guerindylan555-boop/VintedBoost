@@ -54,6 +54,25 @@ function AuthPageInner() {
           Identifiez-vous pour accéder à VintedBoost.
         </p>
 
+        <div className="mb-4 grid gap-2">
+          <button
+            onClick={() => {
+              void authClient.signIn.social({ provider: "google", callbackURL: next });
+            }}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden className="shrink-0">
+              <path fill="#EA4335" d="M12 10.2v3.6h5.1c-.2 1.2-1.5 3.6-5.1 3.6-3.1 0-5.7-2.6-5.7-5.8S8.9 5.8 12 5.8c1.8 0 3 .8 3.7 1.5l2.5-2.4C16.8 3.4 14.6 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12S6.8 21.5 12 21.5c7 0 9.7-4.9 9.7-7.4 0-.5 0-.9-.1-1.3H12z"/>
+            </svg>
+            Continuer avec Google
+          </button>
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+            <span>ou</span>
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+          </div>
+        </div>
+
         <div className="flex gap-2 mb-6">
           <button
             onClick={() => setMode("signin")}

@@ -37,6 +37,7 @@ export default function Home() {
     style: "professionnel",
   });
   const [showPrompt, setShowPrompt] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(true);
 
   const GENDERS = ["femme", "homme"] as const;
   const SIZES = ["xxs", "xs", "s", "m", "l", "xl", "xxl"] as const;
@@ -64,6 +65,7 @@ export default function Home() {
 
   async function generate() {
     if (!imageDataUrl) return;
+    setOptionsOpen(false); // collapse options on generate
     setGenerating(true);
     setError(null);
     setOutImages([]);
@@ -212,8 +214,39 @@ export default function Home() {
             </div>
 
             <div className="mt-4">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-700">Options d’image</h3>
-              <div className="grid grid-cols-1 gap-3">
+              <button
+                type="button"
+                aria-expanded={optionsOpen}
+                aria-controls="options-content"
+                onClick={() => setOptionsOpen((v) => !v)}
+                className="mb-2 flex w-full items-center justify-between rounded-md px-2 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                  Options d’image
+                </span>
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={cx(
+                    "h-4 w-4 text-gray-500 transition-transform duration-300 ease-in-out motion-reduce:transition-none",
+                    optionsOpen ? "rotate-180" : "rotate-0"
+                  )}
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              <div
+                id="options-content"
+                className={cx(
+                  "grid grid-cols-1 gap-3 overflow-hidden transition-all duration-300 ease-in-out motion-reduce:transition-none",
+                  optionsOpen ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"
+                )}
+              >
                 <div>
                   <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
                   <div className="flex flex-wrap gap-2">

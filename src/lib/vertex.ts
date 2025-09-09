@@ -34,7 +34,10 @@ export async function vertexFetch(
 
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-user-project": projectId,
+    },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {

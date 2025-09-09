@@ -3,7 +3,7 @@ VintedBoost — MVP Try-On + Description Vinted (Next.js + OpenRouter)
 Quick start
 
 - Copy `.env.example` to `.env.local` and set `OPENROUTER_API_KEY`.
-- Set Google Vertex AI variables `VERTEX_PROJECT_ID`, `VERTEX_LOCATION` and `VERTEX_API_KEY` for image generation.
+- Set Google Vertex AI variables `VERTEX_PROJECT_ID`, `VERTEX_LOCATION` and `VERTEX_API_KEY` for image generation (the project ID is sent in the `x-goog-user-project` header).
 - If you want server persistence locally, also set `POSTGRES_URL` to a Vercel Postgres connection string.
 - Run `npm run dev` then open http://localhost:3000
 - Upload a “non porté” photo, set the reference, choose mannequin options, click “Générer”.

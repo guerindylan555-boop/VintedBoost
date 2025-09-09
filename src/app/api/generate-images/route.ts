@@ -86,10 +86,16 @@ export async function POST(req: NextRequest) {
     const parts = (
       resp as { candidates?: Array<{ content?: { parts?: unknown[] } }> }
     )?.candidates?.[0]?.content?.parts || [];
-    for (const p of parts as Array<{ inline_data?: { data?: string; mime_type?: string } }>) {
-      const d = p.inline_data;
-      if (d?.data && d?.mime_type) {
-        urls.push(`data:${d.mime_type};base64,${d.data}`);
+    for (const p of parts as Array<Record<string, unknown>>) {
+      const d =
+        (p as { inlineData?: { data?: string; mimeType?: string } }).inlineData ||
+        (p as { inline_data?: { data?: string; mime_type?: string } }).inline_data;
+      const data = d?.data;
+      const mime =
+        (d as { mimeType?: string })?.mimeType ||
+        (d as { mime_type?: string })?.mime_type;
+      if (data && mime) {
+        urls.push(`data:${mime};base64,${data}`);
       }
     }
     return Array.from(new Set(urls));
@@ -153,7 +159,10 @@ export async function POST(req: NextRequest) {
       } else {
         const parts = [
           { text: instruction },
-          { inline_data: { mime_type: mimeType, data: base64Data } },
+          {
+            inlineData: { mimeType, data: base64Data },
+            inline_data: { mime_type: mimeType, data: base64Data },
+          },
         ];
         const payload = { contents: [{ role: "user", parts }] };
         const data = await googleAiFetch(payload, { cache: "no-store" });

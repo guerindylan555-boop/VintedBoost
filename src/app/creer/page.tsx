@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import Toggle from "@/components/Toggle";
 import ThemeToggle from "@/components/ThemeToggle";
-import ResultsGallery from "@/components/ResultsGallery";
-import DescriptionPanel from "@/components/DescriptionPanel";
 import { buildInstruction, type MannequinOptions } from "@/lib/prompt";
 
 function cx(...xs: Array<string | false | undefined>) {
@@ -54,9 +53,15 @@ type HistItem = {
   description?: Record<string, unknown> | null;
   updatedAt?: number | string;
   status?: "draft" | "final";
+  meta?: {
+    options: MannequinOptions;
+    product: { brand: string; model: string; condition?: string };
+    descEnabled: boolean;
+  };
 };
 
 export default function CreatePage() {
+  const router = useRouter();
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -64,8 +69,8 @@ export default function CreatePage() {
   const [outImages, setOutImages] = useState<string[]>([]);
   const fileInputGalleryRef = useRef<HTMLInputElement | null>(null);
   const fileInputCameraRef = useRef<HTMLInputElement | null>(null);
-  const resultRef = useRef<HTMLElement | null>(null);
-  const [history, setHistory] = useState<HistItem[]>([]);
+  // no local results rendering; results are shown on /resultats/[id]
+  const [, setHistory] = useState<HistItem[]>([]);
   const [currentItemId, setCurrentItemId] = useState<string | null>(null);
 
   const [product, setProduct] = useState<{ brand: string; model: string; condition?: string }>(
@@ -85,9 +90,7 @@ export default function CreatePage() {
   const [descEnabled, setDescEnabled] = useState(false);
   const [editCollapsed, setEditCollapsed] = useState(false);
 
-  const [descGenerating, setDescGenerating] = useState(false);
-  const [descError, setDescError] = useState<string | null>(null);
-  const [descResult, setDescResult] = useState<Record<string, unknown> | null>(null);
+  // description/result generation is deferred to /resultats/[id]
 
   const GENDERS = ["femme", "homme"] as const;
   const SIZES = ["xxs", "xs", "s", "m", "l", "xl", "xxl"] as const;
@@ -147,8 +150,6 @@ export default function CreatePage() {
         setImageDataUrl(dataUrl);
         setError(null);
         setOutImages([]);
-        setDescResult(null);
-        setDescError(null);
         setEditCollapsed(false);
         // Create or update draft immediately
         setCurrentItemId((curr) => {
@@ -170,43 +171,33 @@ export default function CreatePage() {
       .catch(() => setError("Impossible de lire l'image"));
   }
 
-  async function generate() {
+  function generate() {
     if (!imageDataUrl) return;
-    setEditCollapsed(true);
-    setOptionsOpen(false);
     setGenerating(true);
     setError(null);
-    setOutImages([]);
-    try {
-      const imgRes = await fetch("/api/generate-images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageDataUrl, options, count: 1 }),
-      });
-      const imgJson = await imgRes.json();
-      if (!imgRes.ok) throw new Error(imgJson?.error || "Erreur images");
-      const images = (imgJson.images || []) as string[];
-      setOutImages(images);
-
-      // Update current draft with results
-      if (currentItemId) {
-        const item: HistItem = {
-          id: currentItemId,
-          createdAt: Date.now(),
-          source: imageDataUrl,
-          results: images,
-          description: null,
-          status: "draft",
-        };
-        upsertLocalHistory(item);
-        persistServer(item);
-      }
-
-      try { resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {}
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg || "Erreur");
-    } finally {
+    setEditCollapsed(true);
+    setOptionsOpen(false);
+    // Ensure we have an item id, and store snapshot meta
+    let id = currentItemId;
+    if (!id) id = newId();
+    const item: HistItem = {
+      id,
+      createdAt: Date.now(),
+      source: imageDataUrl,
+      results: [],
+      description: null,
+      status: "draft",
+      meta: {
+        options,
+        product,
+        descEnabled,
+      },
+    };
+    upsertLocalHistory(item);
+    persistServer(item);
+    setCurrentItemId(id);
+    // Navigate to results page where generation happens with loading screen
+    try { router.push(`/resultats/${encodeURIComponent(String(id))}`); } finally {
       setGenerating(false);
     }
   }
@@ -216,68 +207,7 @@ export default function CreatePage() {
     if (next) setOptionsOpen(true);
   }
 
-  async function generateDescriptionFromPhoto() {
-    if (!imageDataUrl) {
-      setDescError("Veuillez d'abord ajouter la photo du vêtement");
-      return;
-    }
-    setDescGenerating(true);
-    setDescError(null);
-    setDescResult(null);
-    try {
-      const res = await fetch("/api/describe-photo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageDataUrl,
-          product: descEnabled
-            ? {
-                brand: product.brand?.trim() || null,
-                model: product.model?.trim() || null,
-                gender: options.gender || null,
-                size: options.size || null,
-                condition: (product.condition?.trim?.() || null) as string | null,
-              }
-            : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Erreur de génération");
-      setDescResult(data);
-
-      if (currentItemId) {
-        const item: HistItem = {
-          id: currentItemId,
-          createdAt: Date.now(),
-          source: imageDataUrl,
-          results: outImages,
-          description: data,
-          status: "draft",
-        };
-        upsertLocalHistory(item);
-        // best-effort patch, fallback post
-        try {
-          const patchRes = await fetchWithTimeout(
-            `/api/history/${currentItemId}`,
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ description: data }),
-            },
-            2000
-          );
-          if (!patchRes.ok) {
-            await persistServer(item);
-          }
-        } catch { await persistServer(item); }
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setDescError(msg || "Erreur");
-    } finally {
-      setDescGenerating(false);
-    }
-  }
+  // description generation moved to /resultats/[id]
 
   // Persist UI preferences only (not last item)
   useEffect(() => {
@@ -334,22 +264,7 @@ export default function CreatePage() {
       createdAt: Date.now(),
       source: imageDataUrl,
       results: outImages,
-      description: descResult,
       status: "draft",
-    };
-    upsertLocalHistory(item);
-    persistServer(item);
-  }
-
-  function saveFinal() {
-    if (!imageDataUrl || !currentItemId) return;
-    const item: HistItem = {
-      id: currentItemId,
-      createdAt: Date.now(),
-      source: imageDataUrl,
-      results: outImages,
-      description: descResult,
-      status: "final",
     };
     upsertLocalHistory(item);
     persistServer(item);
@@ -405,7 +320,6 @@ export default function CreatePage() {
                     setImageDataUrl(null);
                     setOutImages([]);
                     setError(null);
-                    setDescResult(null);
                     setCurrentItemId(null);
                   }}
                   aria-label="Réinitialiser"
@@ -539,17 +453,7 @@ export default function CreatePage() {
 
             <div className="mt-4 flex items-center gap-2">
               <button
-                onClick={() => {
-                  if (!canGenerate) return;
-                  generate();
-                  if (descEnabled) {
-                    generateDescriptionFromPhoto();
-                  } else {
-                    setDescResult(null);
-                    setDescError(null);
-                    setDescGenerating(false);
-                  }
-                }}
+                onClick={() => { if (canGenerate) generate(); }}
                 disabled={!canGenerate}
                 className={cx(
                   "inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition",
@@ -574,23 +478,7 @@ export default function CreatePage() {
             ) : null}
           </section>
 
-          {outImages.length > 0 ? (
-            <section ref={resultRef} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-2 md:row-start-1">
-              <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
-              <ResultsGallery sourceUrl={imageDataUrl} results={outImages} />
-              {(descResult || descEnabled || descGenerating || descError) ? (
-                <div className="mt-3">
-                  <DescriptionPanel data={descResult} generating={descEnabled ? descGenerating : false} error={descEnabled ? descError : null} />
-                </div>
-              ) : null}
-
-              <div className="mt-4 flex items-center justify-end gap-2">
-                <button type="button" onClick={() => setEditCollapsed(false)} className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">Modifier</button>
-                <button type="button" onClick={saveDraft} className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">Enregistrer en brouillon</button>
-                <button type="button" onClick={saveFinal} className="rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm transition bg-brand-600 text-white hover:bg-brand-700">Enregistrer en annonce définitive</button>
-              </div>
-            </section>
-          ) : null}
+          {/* Les résultats ne sont plus affichés ici; voir /resultats/[id] */}
         </div>
       </main>
     </div>

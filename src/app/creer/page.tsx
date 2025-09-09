@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Toggle from "@/components/Toggle";
-import ThemeToggle from "@/components/ThemeToggle";
 import { buildInstruction, type MannequinOptions } from "@/lib/prompt";
 
 function cx(...xs: Array<string | false | undefined>) {
@@ -91,6 +91,7 @@ export default function CreatePage() {
   const [imageOptsEnabled, setImageOptsEnabled] = useState(true);
   const [descEnabled, setDescEnabled] = useState(false);
   const [editCollapsed, setEditCollapsed] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
 
   // description/result generation is deferred to /resultats/[id]
 
@@ -282,9 +283,7 @@ export default function CreatePage() {
             <h1 className="text-xl font-semibold uppercase tracking-widest">CRÉER</h1>
             <span className="hidden sm:inline text-sm text-gray-500 dark:text-gray-400">Nouvelle annonce</span>
           </div>
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-          </div>
+          <div className="flex items-center gap-3" />
         </div>
       </header>
 
@@ -294,13 +293,51 @@ export default function CreatePage() {
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-1 md:row-start-1">
             <div className="mb-3">
               <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Titre de l’annonce</label>
-              <input
-                placeholder="Ex: Robe Zara noire taille S"
-                value={title}
-                onChange={(e)=>setTitle(e.target.value)}
-                maxLength={100}
-                className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
-              />
+              {!editingTitle ? (
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex-1 min-w-0 rounded-md border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-900/60 px-3 py-2">
+                    <div className="truncate text-sm" title={title || "Ajouter un titre"}>{title || "Ajouter un titre"}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingTitle(true)}
+                    aria-label="Modifier le titre"
+                    title="Modifier le titre"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    placeholder="Ex: Robe Zara noire taille S"
+                    value={title}
+                    onChange={(e)=>setTitle(e.target.value)}
+                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>)=>{ if (e.key==='Enter') setEditingTitle(false); if (e.key==='Escape') { setEditingTitle(false); } }}
+                    maxLength={100}
+                    className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditingTitle(false)}
+                    className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
+                  >
+                    Valider
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingTitle(false)}
+                    className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              )}
             </div>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-base font-semibold uppercase tracking-wide">Annonce</h2>

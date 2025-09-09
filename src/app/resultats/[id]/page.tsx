@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type React from "react";
 import { useParams, useRouter } from "next/navigation";
 import LoadingScreen from "@/components/LoadingScreen";
 import ResultsGallery from "@/components/ResultsGallery";
@@ -58,6 +59,7 @@ export default function ResultatsPage() {
   const [started, setStarted] = useState(false);
   const [title, setTitle] = useState("");
   const [savingEdits, setSavingEdits] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [editDescMode, setEditDescMode] = useState(false);
   const [descText, setDescText] = useState("");
 
@@ -323,13 +325,51 @@ export default function ResultatsPage() {
         <div className="mb-3 flex items-center justify-between gap-2">
           <h1 className="text-base font-semibold uppercase tracking-wide">Résultat</h1>
         </div>
-        <div className="mb-3">
-          <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Titre de l’annonce</label>
-          <div className="flex items-center gap-2">
-            <input value={title} onChange={(e)=>setTitle(e.target.value)} maxLength={100} className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm" />
-            <button onClick={saveTitleAndDescription} disabled={savingEdits} className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60">{savingEdits?"Enregistrement…":"Enregistrer"}</button>
+        {/* Titre: afficher uniquement hors chargement/erreur */}
+        {!showLoading && step !== "error" ? (
+          <div className="mb-3">
+            <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Titre de l’annonce</label>
+            {!editingTitle ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex-1 min-w-0 rounded-md border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-900/60 px-3 py-2">
+                  <div className="truncate text-sm" title={title || "Ajouter un titre"}>{title || "Ajouter un titre"}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingTitle(true)}
+                  aria-label="Modifier le titre"
+                  title="Modifier le titre"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  value={title}
+                  onChange={(e)=>setTitle(e.target.value)}
+                  maxLength={100}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>)=>{ if (e.key === 'Enter') { saveTitleAndDescription(); setEditingTitle(false); } if (e.key === 'Escape') { try { const desc = (item?.description||null) as (null|{ title?: string }); const t = (item?.title || desc?.title || "").toString(); setTitle(t); } catch {}; setEditingTitle(false); } }}
+                  className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+                  placeholder="Ex: Robe Zara noire taille S"
+                  autoFocus
+                />
+                <button onClick={async()=>{ await saveTitleAndDescription(); setEditingTitle(false); }} disabled={savingEdits} className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60">{savingEdits?"Enregistrement…":"Enregistrer"}</button>
+                <button
+                  type="button"
+                  onClick={() => { try { const desc = (item?.description||null) as (null|{ title?: string }); const t = (item?.title || desc?.title || "").toString(); setTitle(t); } catch {}; setEditingTitle(false); }}
+                  className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  Annuler
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        ) : null}
         {showLoading ? (
           <LoadingScreen
             title="Génération en cours"

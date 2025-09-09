@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { buildInstruction, type MannequinOptions } from "@/lib/prompt";
 import Image from "next/image";
 import Toggle from "@/components/Toggle";
-import ThemeToggle from "@/components/ThemeToggle";
 import ResultsGallery from "@/components/ResultsGallery";
 import DescriptionPanel from "@/components/DescriptionPanel";
 
@@ -369,9 +368,7 @@ export default function Home() {
             <h1 className="text-xl font-semibold uppercase tracking-widest">VINTEDBOOST</h1>
             <span className="hidden sm:inline text-sm text-gray-500 dark:text-gray-400">Try‑On</span>
           </div>
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-          </div>
+          <div className="flex items-center gap-3" />
         </div>
       </header>
 

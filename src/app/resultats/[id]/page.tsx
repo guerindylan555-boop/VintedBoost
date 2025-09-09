@@ -251,6 +251,8 @@ export default function ResultatsPage() {
         2000
       );
     } catch {}
+    // Redirect to Mes annonces
+    try { router.push("/annonces"); } catch {}
   }
   function saveFinal() {
     if (!item) return;
@@ -266,6 +268,8 @@ export default function ResultatsPage() {
         2000
       );
     } catch {}
+    // Redirect to Mes annonces
+    try { router.push("/annonces"); } catch {}
   }
 
   async function saveTitleAndDescription() {

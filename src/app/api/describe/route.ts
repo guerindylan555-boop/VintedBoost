@@ -5,14 +5,8 @@ import {
   OpenRouterChatMessage,
 } from "@/lib/openrouter";
 
-function getTextModel() {
-  return (
-    process.env.OPENROUTER_TEXT_MODEL ||
-    process.env.TEXT_MODEL ||
-    // Requested default; if unavailable, callers can set env above
-    "openai/gpt-5-mini"
-  );
-}
+// Locked model for product descriptions
+const TEXT_MODEL = "openai/gpt-5-mini";
 
 function safeJsonParse<T>(text: string): T | null {
   try {
@@ -80,7 +74,7 @@ Indices: ${hints || "(aucun)"}`;
   ];
 
   const payload = {
-    model: getTextModel(),
+    model: TEXT_MODEL,
     messages,
     // Prefer JSON output if supported by provider
     response_format: { type: "json_object" },

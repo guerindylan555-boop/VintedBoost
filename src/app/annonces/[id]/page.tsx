@@ -11,6 +11,7 @@ type Item = {
   source: string;
   results: string[];
   description?: Record<string, unknown> | null;
+  status?: "draft" | "final";
 };
 
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs = 2000): Promise<Response> {
@@ -87,7 +88,19 @@ export default function AnnonceDetailPage() {
   return (
     <div className="mx-auto max-w-screen-md p-4">
       <header className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold uppercase tracking-widest">{title}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold uppercase tracking-widest">{title}</h1>
+          {item?.status === "draft" ? (
+            <span className="rounded border border-amber-500/30 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-300">
+              Brouillon
+            </span>
+          ) : null}
+          {item?.status === "final" ? (
+            <span className="rounded border border-teal-500/30 bg-teal-50 px-1.5 py-0.5 text-[10px] text-teal-700 dark:border-teal-500/30 dark:bg-teal-900/20 dark:text-teal-300">
+              Définitive
+            </span>
+          ) : null}
+        </div>
         <button
           type="button"
           onClick={() => router.push("/annonces")}

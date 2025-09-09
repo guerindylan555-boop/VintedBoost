@@ -51,8 +51,8 @@ export default function BottomDock() {
             <span className="text-[10px] font-semibold uppercase tracking-wider">Créer</span>
           </Link>
 
-          <button
-            type="button"
+          <Link
+            href="/parametres"
             className="flex flex-col items-center justify-center gap-1 rounded-md py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
             aria-label="Paramètres"
           >
@@ -70,7 +70,7 @@ export default function BottomDock() {
               <path d="M12 2.5V5.5M12 18.5V21.5M2.5 12H5.5M18.5 12H21.5M4.8 4.8l2.1 2.1M17.1 17.1l2.1 2.1M4.8 19.2l2.1-2.1M17.1 6.9l2.1-2.1" />
             </svg>
             <span className="text-[10px] font-medium uppercase tracking-wider">Paramètres</span>
-          </button>
+          </Link>
         </div>
       </div>
     </nav>

@@ -12,6 +12,7 @@ type Item = {
   source: string;
   results: string[];
   description?: Record<string, unknown> | null;
+  status?: "draft" | "final";
 };
 
 function cx(...xs: Array<string | false | undefined>) {
@@ -227,6 +228,16 @@ export default function MesAnnoncesPage() {
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <span>{h.results.length} résultat(s)</span>
+                    {h.status === "draft" ? (
+                      <span className="rounded border border-amber-500/30 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-300">
+                        Brouillon
+                      </span>
+                    ) : null}
+                    {h.status === "final" ? (
+                      <span className="rounded border border-teal-500/30 bg-teal-50 px-1.5 py-0.5 text-[10px] text-teal-700 dark:border-teal-500/30 dark:bg-teal-900/20 dark:text-teal-300">
+                        Définitive
+                      </span>
+                    ) : null}
                     {h.description ? (
                       <span className="rounded border border-emerald-500/30 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:text-emerald-300">
                         Description
@@ -259,6 +270,16 @@ export default function MesAnnoncesPage() {
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <span>{h.results.length} résultat(s)</span>
+                    {h.status === "draft" ? (
+                      <span className="rounded border border-amber-500/30 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-300">
+                        Brouillon
+                      </span>
+                    ) : null}
+                    {h.status === "final" ? (
+                      <span className="rounded border border-teal-500/30 bg-teal-50 px-1.5 py-0.5 text-[10px] text-teal-700 dark:border-teal-500/30 dark:bg-teal-900/20 dark:text-teal-300">
+                        Définitive
+                      </span>
+                    ) : null}
                     {h.description ? (
                       <span className="rounded border border-emerald-500/30 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:text-emerald-300">
                         Description

@@ -32,7 +32,7 @@ export default function RootLayout({
         {/* Prevent theme flash on load */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(() => { try { const t = localStorage.getItem('theme'); const d = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches; const e = document.documentElement; d ? e.classList.add('dark') : e.classList.remove('dark'); } catch(_) {} })();`,
+            __html: `(()=>{try{const t=localStorage.getItem('theme');const m=window.matchMedia('(prefers-color-scheme: dark)').matches;const e=document.documentElement;let dark=false;if(!t||t==='system'){dark=m;}else if(t==='dark'){dark=true;}else{dark=false;}dark?e.classList.add('dark'):e.classList.remove('dark');}catch(_){}})();`,
           }}
         />
         <div

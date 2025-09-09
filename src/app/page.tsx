@@ -337,76 +337,7 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={generateDescriptionFromPhoto}
-                  disabled={!imageDataUrl || descGenerating}
-                  className={cx(
-                    "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold shadow-sm",
-                    imageDataUrl && !descGenerating
-                      ? "bg-brand-600 text-white hover:bg-brand-700"
-                      : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-                  )}
-                  title={!imageDataUrl ? "Ajoutez d'abord la photo" : "Générer description"}
-                >
-                  {descGenerating ? "Génération…" : "Générer description Vinted"}
-                </button>
-                {descError ? (
-                  <div className="mt-2 text-xs text-red-600 dark:text-red-400">{descError}</div>
-                ) : null}
-                {descResult ? (
-                  <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/60 p-2">
-                    <div className="text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1">Description générée</div>
-                    <textarea
-                      readOnly
-                      className="w-full min-h-28 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs"
-                      value={(() => {
-                        try {
-                          const d = descResult as Record<string, unknown>;
-                          const proposalsRaw = d["proposals"];
-                          if (Array.isArray(proposalsRaw) && proposalsRaw.length) {
-                            const blocks = proposalsRaw.slice(0, 3).map((p, idx) => {
-                              const obj = (p ?? {}) as Record<string, unknown>;
-                              const title = typeof obj["title"] === "string" ? (obj["title"] as string) : "";
-                              const bpRaw = obj["bulletPoints"];
-                              const bpArr = Array.isArray(bpRaw) ? (bpRaw as unknown[]) : [];
-                              const bullets = bpArr
-                                .filter((x): x is string => typeof x === "string")
-                                .map((b) => `• ${b}`)
-                                .join("\n");
-                              const text = typeof obj["descriptionText"] === "string" ? (obj["descriptionText"] as string) : "";
-                              const brand = typeof obj["brand"] === "string" && obj["brand"] ? `Marque: ${obj["brand"]}\n` : "";
-                              const model = typeof obj["model"] === "string" && obj["model"] ? `Modèle: ${obj["model"]}\n` : "";
-                              return [`Proposition ${idx + 1}`, title, brand + model, bullets, text]
-                                .filter(Boolean)
-                                .join("\n\n");
-                            });
-                            return blocks.join("\n\n\n");
-                          }
-                          const titleVal = d["title"];
-                          const title = typeof titleVal === "string" ? titleVal : "";
-                          const bulletsRaw = d["bulletPoints"];
-                          const bulletsArr = Array.isArray(bulletsRaw) ? (bulletsRaw as unknown[]) : [];
-                          const bullets = bulletsArr
-                            .filter((x): x is string => typeof x === "string")
-                            .map((b) => `• ${b}`)
-                            .join("\n");
-                          const textVal = d["descriptionText"];
-                          const text = typeof textVal === "string" ? textVal : "";
-                          const brandVal = d["brand"];
-                          const brand = typeof brandVal === "string" && brandVal ? `Marque: ${brandVal}\n` : "";
-                          const modelVal = d["model"];
-                          const model = typeof modelVal === "string" && modelVal ? `Modèle: ${modelVal}\n` : "";
-                          return [title, brand + model, bullets, text].filter(Boolean).join("\n\n").trim() || JSON.stringify(d, null, 2);
-                        } catch {
-                          return JSON.stringify(descResult, null, 2);
-                        }
-                      })()}
-                    />
-                  </div>
-                ) : null}
-              </div>
+              
             </div>
             )}
           </section>
@@ -702,7 +633,19 @@ export default function Home() {
 
             <div className="mt-4 flex items-center gap-2">
               <button
-                onClick={generate}
+                onClick={() => {
+                  if (!canGenerate) return;
+                  // Always generate images
+                  generate();
+                  // Conditionally generate description
+                  if (productEnabled) {
+                    generateDescriptionFromPhoto();
+                  } else {
+                    setDescResult(null);
+                    setDescError(null);
+                    setDescGenerating(false);
+                  }
+                }}
                 disabled={!canGenerate}
                 className={cx(
                   "inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition",
@@ -711,7 +654,11 @@ export default function Home() {
                     : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
                 )}
               >
-                {generating ? "Génération…" : "Générer l’image portée"}
+                {generating
+                  ? "Génération…"
+                  : productEnabled
+                  ? "Générer image + description"
+                  : "Générer l’image"}
               </button>
             </div>
             {error ? (
@@ -757,6 +704,63 @@ export default function Home() {
                     </div>
                   </a>
                 ))}
+                {productEnabled ? (
+                  <div className="mt-3">
+                    {descGenerating ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Génération de la description…</div>
+                    ) : descError ? (
+                      <div className="text-sm text-red-600 dark:text-red-400">{descError}</div>
+                    ) : descResult ? (
+                      <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/60 p-2">
+                        <div className="text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1">Description générée</div>
+                        <textarea
+                          readOnly
+                          className="w-full min-h-28 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs"
+                          value={(() => {
+                            try {
+                              const d = descResult as Record<string, unknown>;
+                              const proposalsRaw = d["proposals"];
+                              if (Array.isArray(proposalsRaw) && proposalsRaw.length) {
+                                const blocks = proposalsRaw.slice(0, 3).map((p, idx) => {
+                                  const obj = (p ?? {}) as Record<string, unknown>;
+                                  const title = typeof obj["title"] === "string" ? (obj["title"] as string) : "";
+                                  const bpRaw = obj["bulletPoints"];
+                                  const bpArr = Array.isArray(bpRaw) ? (bpRaw as unknown[]) : [];
+                                  const bullets = bpArr
+                                    .filter((x): x is string => typeof x === "string")
+                                    .map((b) => `• ${b}`)
+                                    .join("\n");
+                                  const text = typeof obj["descriptionText"] === "string" ? (obj["descriptionText"] as string) : "";
+                                  const brand = typeof obj["brand"] === "string" && obj["brand"] ? `Marque: ${obj["brand"]}\n` : "";
+                                  const model = typeof obj["model"] === "string" && obj["model"] ? `Modèle: ${obj["model"]}\n` : "";
+                                  return [title, brand + model, bullets, text].filter(Boolean).join("\n\n");
+                                });
+                                return blocks.join("\n\n\n");
+                              }
+                              const titleVal = d["title"];
+                              const title = typeof titleVal === "string" ? titleVal : "";
+                              const bulletsRaw = d["bulletPoints"];
+                              const bulletsArr = Array.isArray(bulletsRaw) ? (bulletsRaw as unknown[]) : [];
+                              const bullets = bulletsArr
+                                .filter((x): x is string => typeof x === "string")
+                                .map((b) => `• ${b}`)
+                                .join("\n");
+                              const textVal = d["descriptionText"];
+                              const text = typeof textVal === "string" ? textVal : "";
+                              const brandVal = d["brand"];
+                              const brand = typeof brandVal === "string" && brandVal ? `Marque: ${brandVal}\n` : "";
+                              const modelVal = d["model"];
+                              const model = typeof modelVal === "string" && modelVal ? `Modèle: ${modelVal}\n` : "";
+                              return [title, brand + model, bullets, text].filter(Boolean).join("\n\n").trim() || JSON.stringify(d, null, 2);
+                            } catch {
+                              return JSON.stringify(descResult, null, 2);
+                            }
+                          })()}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             )}
           </section>

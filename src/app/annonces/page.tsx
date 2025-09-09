@@ -100,7 +100,7 @@ export default function MesAnnoncesPage() {
     try {
       localStorage.setItem("vintedboost_last", JSON.stringify(it));
     } catch {}
-    router.push("/");
+    router.push(`/annonces/${encodeURIComponent(String(it.id))}`);
   }
 
   return (
@@ -274,4 +274,3 @@ export default function MesAnnoncesPage() {
     </div>
   );
 }
-

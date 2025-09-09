@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import useEmblaCarousel from "embla-carousel-react";
+import type { EmblaCarouselType } from "embla-carousel";
 
 function cx(...xs: Array<string | false | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -21,8 +23,11 @@ type ResultsGalleryProps = {
  * Desktop: segmented control (tabs) to switch
  */
 export default function ResultsGallery({ sourceUrl, results, className }: ResultsGalleryProps) {
-  const [active, setActive] = useState(0); // 0 = generated, 1 = source
-  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [canPrev, setCanPrev] = useState(false);
+  const [canNext, setCanNext] = useState(false);
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: "start", containScroll: "trimSnaps", dragFree: false, skipSnaps: false });
+
   const slides = useMemo(() => {
     const gen = results[0] || null;
     const src = sourceUrl || null;
@@ -30,28 +35,25 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
   }, [results, sourceUrl]);
 
   const hasSlides = slides.length > 0;
+  const hasBoth = slides.length >= 2;
 
-  // snap to selected tab on desktop click
-  function scrollToIndex(idx: number) {
-    const el = viewportRef.current;
-    if (!el) return;
-    const w = el.clientWidth;
-    el.scrollTo({ left: w * idx, behavior: "smooth" });
-  }
-
-  // Track active slide on scroll (for mobile)
-  function onScroll() {
-    const el = viewportRef.current;
-    if (!el) return;
-    const idx = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
-    if (idx !== active) setActive(idx);
-  }
+  const onSelect = useCallback((api: EmblaCarouselType) => {
+    setSelectedIndex(api.selectedScrollSnap());
+    setCanPrev(api.canScrollPrev());
+    setCanNext(api.canScrollNext());
+  }, []);
 
   useEffect(() => {
-    scrollToIndex(active);
-  }, [active]);
-
-  const hasBoth = slides.length >= 2;
+    if (!emblaApi) return;
+    const handler = () => onSelect(emblaApi);
+    emblaApi.on("select", handler);
+    emblaApi.on("reInit", handler);
+    handler();
+    return () => {
+      emblaApi.off("select", handler);
+      emblaApi.off("reInit", handler);
+    };
+  }, [emblaApi, onSelect, slides.length]);
 
   return (
     <div className={className}>
@@ -65,18 +67,13 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
       {/* Swipeable viewport */}
       {hasSlides ? (
         <div className="relative">
-          <div
-            ref={viewportRef}
-            onScroll={onScroll}
-            className="relative overflow-x-auto overflow-y-hidden touch-pan-x snap-x snap-mandatory no-scrollbar"
-            style={{ WebkitOverflowScrolling: "touch", scrollBehavior: "smooth" }}
-          >
-            <div className="flex w-full">
+          <div ref={emblaRef} className="overflow-hidden">
+            <div className="flex">
               {slides.map((u, i) => (
                 <div
                   id={`result-slide-${i}`}
                   key={i}
-                  className="relative w-full flex-none snap-start"
+                  className="relative flex-[0_0_100%]"
                   aria-roledescription="slide"
                   aria-label={`${i + 1} sur ${slides.length}`}
                 >
@@ -109,15 +106,15 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
           </div>
           {/* Arrows overlay */}
           {hasBoth ? (
-            <>
+            <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center justify-between">
               <button
                 type="button"
                 aria-label="Image précédente"
-                onClick={() => setActive((v) => Math.max(0, v - 1))}
-                disabled={active === 0}
+                onClick={() => emblaApi?.scrollPrev()}
+                disabled={!canPrev}
                 className={cx(
-                  "absolute left-2 top-1/2 -translate-y-1/2 z-10 h-9 w-9 rounded-full backdrop-blur bg-white/70 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 shadow flex items-center justify-center transition",
-                  active === 0 && "opacity-50 cursor-not-allowed"
+                  "pointer-events-auto ml-2 h-9 w-9 rounded-full backdrop-blur bg-white/70 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 shadow flex items-center justify-center transition",
+                  !canPrev && "opacity-50 cursor-not-allowed"
                 )}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="M15 18l-6-6 6-6" /></svg>
@@ -125,31 +122,32 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
               <button
                 type="button"
                 aria-label="Image suivante"
-                onClick={() => setActive((v) => Math.min(slides.length - 1, v + 1))}
-                disabled={active === slides.length - 1}
+                onClick={() => emblaApi?.scrollNext()}
+                disabled={!canNext}
                 className={cx(
-                  "absolute right-2 top-1/2 -translate-y-1/2 z-10 h-9 w-9 rounded-full backdrop-blur bg-white/70 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 shadow flex items-center justify-center transition",
-                  active === slides.length - 1 && "opacity-50 cursor-not-allowed"
+                  "pointer-events-auto mr-2 h-9 w-9 rounded-full backdrop-blur bg-white/70 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 shadow flex items-center justify-center transition",
+                  !canNext && "opacity-50 cursor-not-allowed"
                 )}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="M9 6l6 6-6 6" /></svg>
               </button>
-            </>
+            </div>
           ) : null}
         </div>
       ) : null}
 
       {/* Dots on mobile */}
-      {hasSlides ? (
+      {hasBoth ? (
         <div className="mt-2 flex items-center justify-center gap-1">
           {slides.map((_, i) => (
             <button
               key={i}
               aria-label={`Aller à la diapositive ${i + 1}`}
-              onClick={() => setActive(i)}
+              aria-current={selectedIndex === i}
+              onClick={() => emblaApi?.scrollTo(i)}
               className={cx(
                 "h-1.5 w-4 rounded-full transition",
-                active === i ? "bg-brand-600" : "bg-gray-300 dark:bg-gray-700"
+                selectedIndex === i ? "bg-brand-600" : "bg-gray-300 dark:bg-gray-700"
               )}
             />
           ))}

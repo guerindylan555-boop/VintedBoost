@@ -237,15 +237,37 @@ export default function MesAnnoncesPage() {
                 onClick={() => openItem(h)}
                 className="group relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-900/60 text-left hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
               >
-                <div className="relative w-full overflow-hidden border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
-                  <Image
-                    src={h.source}
-                    alt="source"
-                    width={800}
-                    height={600}
-                    className="w-full h-40 object-contain"
-                    unoptimized
-                  />
+                <div className="w-full overflow-hidden border-b border-gray-100 dark:border-gray-800">
+                  <div className="grid grid-cols-2 gap-1">
+                    <div className="relative h-40 bg-gray-50 dark:bg-gray-900">
+                      <Image
+                        src={h.source}
+                        alt="image source"
+                        fill
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                        className="object-contain"
+                        unoptimized
+                      />
+                      <div className="absolute left-2 top-2 rounded-md bg-white/85 dark:bg-gray-900/80 px-2 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">Source</div>
+                    </div>
+                    <div className="relative h-40 bg-gray-50 dark:bg-gray-900">
+                      {h.results[0] ? (
+                        <Image
+                          src={h.results[0]}
+                          alt="image générée"
+                          fill
+                          sizes="(max-width: 768px) 100vw, 50vw"
+                          className="object-contain"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <Image src="/file.svg" alt="placeholder" width={24} height={24} className="opacity-60" />
+                        </div>
+                      )}
+                      <div className="absolute left-2 top-2 rounded-md bg-white/85 dark:bg-gray-900/80 px-2 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">Générée</div>
+                    </div>
+                  </div>
                 </div>
                 <div className="p-3 min-w-0">
                   <div className="flex items-start gap-2">

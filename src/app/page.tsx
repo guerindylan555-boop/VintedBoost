@@ -47,6 +47,9 @@ export default function Home() {
   });
   const [showPrompt, setShowPrompt] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(true);
+  // Toggle de génération de description et état de rétraction de l'édition
+  const [descEnabled, setDescEnabled] = useState(false);
+  const [editCollapsed, setEditCollapsed] = useState(false);
 
   // Génération description Vinted depuis la carte produit
   const [descGenerating, setDescGenerating] = useState(false);
@@ -127,6 +130,19 @@ export default function Home() {
     }
   }
 
+  function onToggleDesc(next: boolean) {
+    setDescEnabled(next);
+    if (next) {
+      // Rétracter l'édition et faire apparaître le résultat
+      setEditCollapsed(true);
+      try {
+        resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch {}
+    } else {
+      setEditCollapsed(false);
+    }
+  }
+
   async function generateDescriptionFromPhoto() {
     if (!imageDataUrl) {
       setDescError("Veuillez d'abord ajouter la photo du vêtement");
@@ -194,6 +210,12 @@ export default function Home() {
       if (rawProdEnabled != null) {
         setProductEnabled(rawProdEnabled === "true");
       }
+      const rawDescEnabled = localStorage.getItem("vintedboost_desc_enabled");
+      if (rawDescEnabled != null) {
+        const enabled = rawDescEnabled === "true";
+        setDescEnabled(enabled);
+        setEditCollapsed(enabled);
+      }
     } catch {}
     // Attempt to hydrate from server history as source of truth when available
     (async () => {
@@ -231,6 +253,12 @@ export default function Home() {
     } catch {}
   }, [productEnabled]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("vintedboost_desc_enabled", String(descEnabled));
+    } catch {}
+  }, [descEnabled]);
+
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white text-gray-900 dark:from-gray-950 dark:to-gray-900 dark:text-gray-100">
       <header className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b border-gray-100 dark:border-gray-800">
@@ -247,103 +275,10 @@ export default function Home() {
 
       <main className="mx-auto max-w-screen-md p-4">
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Carte d'informations sur le vêtement */}
+          {/* Carte fusionnée: Annonce (upload, toggle description, options) */}
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-1 md:row-start-1">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold uppercase tracking-wide">Infos vêtement</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300">Activer</span>
-                <Toggle checked={productEnabled} onChange={setProductEnabled} ariaLabel="Activer les infos vêtement" />
-              </div>
-            </div>
-            {productEnabled && (
-            <div className="grid grid-cols-1 gap-3">
-              <div>
-                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="brand">Marque</label>
-                <input
-                  id="brand"
-                  type="text"
-                  placeholder="ex: Nike, Zara, Levi's..."
-                  value={product.brand}
-                  onChange={(e) => setProduct((p) => ({ ...p, brand: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
-                />
-              </div>
-              <div>
-                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">État</div>
-                <div className="flex flex-wrap gap-2">
-                  {CONDITIONS.map((c) => (
-                    <button
-                      key={`prod-cond-${c}`}
-                      onClick={() => setProduct((p) => ({ ...p, condition: c }))}
-                      className={cx(
-                        "rounded-md border px-2 py-1 text-xs",
-                        product.condition === c
-                          ? "bg-brand-600 text-white border-brand-600"
-                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
-                      )}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="model">Modèle</label>
-                <input
-                  id="model"
-                  type="text"
-                  placeholder="ex: Air Max 90, Veste Trucker..."
-                  value={product.model}
-                  onChange={(e) => setProduct((p) => ({ ...p, model: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
-                />
-              </div>
-              <div>
-                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
-                <div className="flex flex-wrap gap-2">
-                  {GENDERS.map((g) => (
-                    <button
-                      key={`prod-gender-${g}`}
-                      onClick={() => setOptions((o) => ({ ...o, gender: g }))}
-                      className={cx(
-                        "rounded-md border px-2 py-1 text-xs uppercase",
-                        options.gender === g
-                          ? "bg-brand-600 text-white border-brand-600"
-                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
-                      )}
-                    >
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Taille</div>
-                <div className="flex flex-wrap gap-2">
-                  {SIZES.map((s) => (
-                    <button
-                      key={`prod-size-${s}`}
-                      onClick={() => setOptions((o) => ({ ...o, size: s }))}
-                      className={cx(
-                        "rounded-md border px-2 py-1 text-xs uppercase",
-                        options.size === s
-                          ? "bg-brand-600 text-white border-brand-600"
-                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
-                      )}
-                    >
-                      {s.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-            </div>
-            )}
-          </section>
-          <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-1 md:row-start-2">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold uppercase tracking-wide">Votre photo</h2>
+              <h2 className="text-base font-semibold uppercase tracking-wide">Annonce</h2>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -477,7 +412,20 @@ export default function Home() {
               />
             </div>
 
-            <div className="mt-4">
+            {/* Panneau d'édition (toggle description + options + action) */}
+            <div className={cx("mt-4", editCollapsed ? "hidden" : "block")}> 
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">
+                  Générer la description
+                </div>
+                <Toggle
+                  checked={descEnabled}
+                  onChange={onToggleDesc}
+                  ariaLabel="Activer la génération de description"
+                />
+              </div>
+              
+              <div className="mt-2">
               <button
                 type="button"
                 aria-expanded={optionsOpen}
@@ -615,6 +563,62 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* Infos vêtement (optionnel) */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Infos vêtement</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300">Activer</span>
+                      <Toggle checked={productEnabled} onChange={setProductEnabled} ariaLabel="Activer les infos vêtement" />
+                    </div>
+                  </div>
+                  {productEnabled && (
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="brand">Marque</label>
+                        <input
+                          id="brand"
+                          type="text"
+                          placeholder="ex: Nike, Zara, Levi's..."
+                          value={product.brand}
+                          onChange={(e) => setProduct((p) => ({ ...p, brand: e.target.value }))}
+                          className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
+                        />
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">État</div>
+                        <div className="flex flex-wrap gap-2">
+                          {CONDITIONS.map((c) => (
+                            <button
+                              key={`prod-cond-inline-${c}`}
+                              onClick={() => setProduct((p) => ({ ...p, condition: c }))}
+                              className={cx(
+                                "rounded-md border px-2 py-1 text-xs",
+                                product.condition === c
+                                  ? "bg-brand-600 text-white border-brand-600"
+                                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                              )}
+                            >
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="model">Modèle</label>
+                        <input
+                          id="model"
+                          type="text"
+                          placeholder="ex: Air Max 90, Veste Trucker..."
+                          value={product.model}
+                          onChange={(e) => setProduct((p) => ({ ...p, model: e.target.value }))}
+                          className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <div className="flex items-center justify-between">
                     <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Texte d’instruction</div>
@@ -630,6 +634,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            </div>
 
             <div className="mt-4 flex items-center gap-2">
               <button
@@ -638,7 +643,7 @@ export default function Home() {
                   // Always generate images
                   generate();
                   // Conditionally generate description
-                  if (productEnabled) {
+                  if (descEnabled) {
                     generateDescriptionFromPhoto();
                   } else {
                     setDescResult(null);
@@ -656,7 +661,7 @@ export default function Home() {
               >
                 {generating
                   ? "Génération…"
-                  : productEnabled
+                  : descEnabled
                   ? "Générer image + description"
                   : "Générer l’image"}
               </button>
@@ -671,6 +676,22 @@ export default function Home() {
             className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-2 md:row-start-1"
           >
             <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
+            {imageDataUrl ? (
+              <div className="mb-3 flex items-center gap-3">
+                <Image
+                  src={imageDataUrl}
+                  alt="image source"
+                  width={72}
+                  height={72}
+                  className="shrink-0 rounded-md border object-contain dark:border-gray-700 bg-white"
+                  unoptimized
+                />
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Image source (non portée)</div>
+                  <div className="text-[11px] text-gray-500 dark:text-gray-400">Toujours visible en mode résultat</div>
+                </div>
+              </div>
+            ) : null}
             {generating ? (
               <div className="flex h-full min-h-40 flex-col items-center justify-center gap-3 text-sm text-gray-500 dark:text-gray-400" role="status" aria-live="polite">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent dark:border-brand-400 dark:border-t-transparent" aria-hidden="true" />
@@ -704,7 +725,7 @@ export default function Home() {
                     </div>
                   </a>
                 ))}
-                {productEnabled ? (
+                {descEnabled ? (
                   <div className="mt-3">
                     {descGenerating ? (
                       <div className="text-sm text-gray-500 dark:text-gray-400">Génération de la description…</div>
@@ -763,6 +784,41 @@ export default function Home() {
                 ) : null}
               </div>
             )}
+            {(imageDataUrl || outImages.length > 0) ? (
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditCollapsed(false);
+                    try {
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    } catch {}
+                  }}
+                  className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  Modifier
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canGenerate) return;
+                    generate();
+                    if (descEnabled) {
+                      generateDescriptionFromPhoto();
+                    }
+                  }}
+                  disabled={!canGenerate}
+                  className={cx(
+                    "rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm transition",
+                    canGenerate
+                      ? "bg-brand-600 text-white hover:bg-brand-700"
+                      : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                  )}
+                >
+                  {generating ? "Regénération…" : "Regénérer"}
+                </button>
+              </div>
+            ) : null}
           </section>
         </div>
 

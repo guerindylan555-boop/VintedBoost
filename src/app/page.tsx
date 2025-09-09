@@ -210,22 +210,36 @@ export default function Home() {
           return next;
         });
       } catch {}
-      // upsert server history with description
+      // Persist description server-side on the item (PATCH) with POST fallback
       try {
         if (currentItemId) {
-          const cur = history.find((x) => x.id === currentItemId);
-          const payload = cur
-            ? { ...cur, description: data }
-            : { id: currentItemId, source: imageDataUrl!, results: outImages, createdAt: Date.now(), description: data };
-          await fetchWithTimeout(
-            "/api/history",
+          const patchRes = await fetchWithTimeout(
+            `/api/history/${currentItemId}`,
             {
-              method: "POST",
+              method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
+              body: JSON.stringify({ description: data }),
             },
             2000
           );
+          if (!patchRes.ok) {
+            // Fallback to POST upsert
+            await fetchWithTimeout(
+              "/api/history",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  id: currentItemId,
+                  source: imageDataUrl!,
+                  results: outImages,
+                  createdAt: Date.now(),
+                  description: data,
+                }),
+              },
+              2000
+            );
+          }
         }
       } catch {}
     } catch (e: unknown) {

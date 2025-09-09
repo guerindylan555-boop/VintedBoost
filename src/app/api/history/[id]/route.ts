@@ -63,3 +63,35 @@ export async function GET(
   if (newSessionId) setSessionCookie(res, newSessionId);
   return res;
 }
+
+export async function PATCH(req: Request, context: unknown) {
+  const params = (context as { params?: Record<string, string> })?.params || {};
+  const id = params.id;
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+  const body = (await req.json().catch(() => null)) as {
+    description?: unknown | null;
+    results?: string[];
+    source?: string;
+  } | null;
+  if (!body || !("description" in body)) {
+    return NextResponse.json({ error: "Missing 'description' in body" }, { status: 400 });
+  }
+
+  const sessionId = await getSessionId();
+  if (!sessionId) {
+    // Without session, we cannot update an item; return 401
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await ensureTable();
+  const result = await sql`
+    UPDATE history_items
+    SET description = ${body.description == null ? null : JSON.stringify(body.description)}::jsonb
+    WHERE id = ${id} AND session_id = ${sessionId}
+  `;
+  if ((result as unknown as { rowCount?: number }).rowCount === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
+}

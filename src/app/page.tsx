@@ -488,7 +488,7 @@ export default function Home() {
               <input
                 ref={fileInputGalleryRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 onChange={(e) => onFiles(e.target.files)}
                 className="hidden"
               />
@@ -496,7 +496,7 @@ export default function Home() {
               <input
                 ref={fileInputCameraRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 capture="environment"
                 onChange={(e) => onFiles(e.target.files)}
                 className="hidden"

@@ -5,6 +5,7 @@ import {
   OpenRouterChatMessage,
 } from "@/lib/openrouter";
 import { MannequinOptions, buildInstruction } from "@/lib/prompt";
+import { normalizeImageDataUrl } from "@/lib/image";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,17 @@ export async function POST(req: NextRequest) {
   }
 
   const n = Math.min(Math.max(Number(count) || 1, 1), 3);
+
+  // Normalize input image (handle HEIC/unknown → JPEG, max 2048px)
+  let safeImageDataUrl = imageDataUrl;
+  try {
+    safeImageDataUrl = await normalizeImageDataUrl(imageDataUrl);
+  } catch {
+    return NextResponse.json(
+      { error: "The image data provided is invalid or unsupported." },
+      { status: 400 }
+    );
+  }
 
   function extractImageUrls(resp: OpenRouterChatCompletionResponse): string[] {
     type ImagesPart = { image_url?: { url?: string } };
@@ -82,7 +94,7 @@ export async function POST(req: NextRequest) {
           role: "user",
           content: [
             { type: "text", text: instruction },
-            { type: "image_url", image_url: { url: imageDataUrl } },
+            { type: "image_url", image_url: { url: safeImageDataUrl } },
           ],
         },
       ];

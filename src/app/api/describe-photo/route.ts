@@ -4,6 +4,7 @@ import {
   OpenRouterChatCompletionResponse,
   OpenRouterChatMessage,
 } from "@/lib/openrouter";
+import { normalizeImageDataUrl } from "@/lib/image";
 
 function getTextModel() {
   return (
@@ -84,6 +85,17 @@ export async function POST(req: NextRequest) {
 
   const metaText = `Infos vêtement: ${JSON.stringify(meta)}\nIndices: ${hints || "(aucun)"}`;
 
+  // Normalize input image (handle HEIC/unknown → JPEG, max 2048px)
+  let safeImageDataUrl = imageDataUrl;
+  try {
+    safeImageDataUrl = await normalizeImageDataUrl(imageDataUrl);
+  } catch {
+    return NextResponse.json(
+      { error: "The image data provided is invalid or unsupported." },
+      { status: 400 }
+    );
+  }
+
   const messages: OpenRouterChatMessage[] = [
     { role: "system", content: system },
     {
@@ -92,7 +104,7 @@ export async function POST(req: NextRequest) {
         { type: "text", text: instruction },
         { type: "text", text: requiredJsonShape },
         { type: "text", text: metaText },
-        { type: "image_url", image_url: { url: imageDataUrl } },
+        { type: "image_url", image_url: { url: safeImageDataUrl } },
       ],
     },
   ];

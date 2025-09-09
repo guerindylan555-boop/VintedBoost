@@ -4,6 +4,13 @@ import { NextResponse, NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Redirect root to /creer
+  if (pathname === "/") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/creer";
+    return NextResponse.redirect(url);
+  }
+
   // Allow auth routes and Next internals/static assets
   if (
     pathname.startsWith("/api/auth") ||

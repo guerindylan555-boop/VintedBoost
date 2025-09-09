@@ -312,14 +312,14 @@ export default function CreatePage() {
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <input
                     placeholder="Ex: Robe Zara noire taille S"
                     value={title}
                     onChange={(e)=>setTitle(e.target.value)}
                     onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>)=>{ if (e.key==='Enter') setEditingTitle(false); if (e.key==='Escape') { setEditingTitle(false); } }}
                     maxLength={100}
-                    className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                    className="min-w-0 grow rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
                     autoFocus
                   />
                   <button

@@ -179,13 +179,13 @@ export default function AnnonceDetailPage() {
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               value={titleInput}
               onChange={(e)=>setTitleInput(e.target.value)}
               maxLength={100}
               onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>)=>{ if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') { try { const desc = (item?.description||null) as (null|{ title?: string }); const t = ((item?.title || desc?.title || "") as string).toString(); setTitleInput(t); } catch {}; setEditingTitle(false); } }}
-              className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+              className="min-w-0 grow rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
               placeholder="Ex: Robe Zara noire taille S"
               autoFocus
             />

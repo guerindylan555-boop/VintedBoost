@@ -6,14 +6,8 @@ import {
 } from "@/lib/openrouter";
 import { normalizeImageDataUrl } from "@/lib/image";
 
-function getTextModel() {
-  return (
-    process.env.OPENROUTER_TEXT_MODEL ||
-    process.env.TEXT_MODEL ||
-    // default requested by user
-    "openai/gpt-5-mini"
-  );
-}
+// Locked model for photo descriptions
+const TEXT_MODEL = "openai/gpt-5-mini";
 
 function safeJsonParse<T>(text: string): T | null {
   try {
@@ -110,7 +104,7 @@ export async function POST(req: NextRequest) {
   ];
 
   const payload = {
-    model: getTextModel(),
+    model: TEXT_MODEL,
     messages,
     response_format: { type: "json_object" },
   };

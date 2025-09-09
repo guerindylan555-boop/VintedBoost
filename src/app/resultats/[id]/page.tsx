@@ -123,9 +123,20 @@ export default function ResultatsPage() {
       setStep("images");
       setProgress(20);
       context = "Génération des images";
+      const provider = (() => {
+        try {
+          return localStorage.getItem("imageProvider");
+        } catch {
+          return null;
+        }
+      })();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (provider) headers["X-Image-Provider"] = provider;
       const imgRes = await fetch("/api/generate-images", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ imageDataUrl: item.source, options: item.meta?.options, count: 1 }),
       });
       const imgJson = await imgRes.json();

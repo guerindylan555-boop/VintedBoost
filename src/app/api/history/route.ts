@@ -15,6 +15,11 @@ async function ensureTable() {
       results JSONB NOT NULL
     );
   `;
+  // Ensure optional description column exists
+  await sql`
+    ALTER TABLE history_items
+    ADD COLUMN IF NOT EXISTS description JSONB
+  `;
 }
 
 export async function GET(req: NextRequest) {
@@ -28,8 +33,9 @@ export async function GET(req: NextRequest) {
     created_at: string;
     source_image: string;
     results: unknown;
+    description: unknown | null;
   }>`
-    SELECT id, created_at, source_image, results
+    SELECT id, created_at, source_image, results, description
     FROM history_items
     WHERE session_id = ${sessionId}
     ORDER BY created_at DESC
@@ -41,6 +47,7 @@ export async function GET(req: NextRequest) {
       createdAt: r.created_at,
       source: r.source_image,
       results: Array.isArray(r.results) ? (r.results as string[]) : [],
+      description: r.description ?? null,
     })),
   });
   return res;
@@ -55,6 +62,7 @@ export async function POST(req: NextRequest) {
     source: string;
     results: string[];
     createdAt?: number | string;
+    description?: unknown | null;
   };
 
   if (!body?.source || !Array.isArray(body?.results)) {
@@ -74,11 +82,19 @@ export async function POST(req: NextRequest) {
 
   await ensureTable();
   await sql`
-    INSERT INTO history_items (id, session_id, created_at, source_image, results)
-    VALUES (${id}, ${session.user.id}, ${created.toISOString()}, ${body.source}, ${JSON.stringify(
-    body.results
-  )}::jsonb)
-    ON CONFLICT (id) DO NOTHING
+    INSERT INTO history_items (id, session_id, created_at, source_image, results, description)
+    VALUES (
+      ${id},
+      ${session.user.id},
+      ${created.toISOString()},
+      ${body.source},
+      ${JSON.stringify(body.results)}::jsonb,
+      ${body.description == null ? null : JSON.stringify(body.description)}::jsonb
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      source_image = EXCLUDED.source_image,
+      results = EXCLUDED.results,
+      description = EXCLUDED.description
   `;
 
   return NextResponse.json({ ok: true, id });

@@ -15,6 +15,10 @@ async function ensureTable() {
       results JSONB NOT NULL
     );
   `;
+  await sql`
+    ALTER TABLE history_items
+    ADD COLUMN IF NOT EXISTS description JSONB
+  `;
 }
 
 export async function GET(
@@ -38,8 +42,9 @@ export async function GET(
     created_at: string;
     source_image: string;
     results: unknown;
+    description: unknown | null;
   }>`
-    SELECT id, created_at, source_image, results
+    SELECT id, created_at, source_image, results, description
     FROM history_items
     WHERE id = ${id} AND session_id = ${sessionId}
     LIMIT 1
@@ -53,6 +58,7 @@ export async function GET(
     createdAt: r.created_at,
     source: r.source_image,
     results: Array.isArray(r.results) ? (r.results as string[]) : [],
+    description: r.description ?? null,
   });
   if (newSessionId) setSessionCookie(res, newSessionId);
   return res;

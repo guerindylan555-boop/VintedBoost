@@ -43,8 +43,9 @@ export default function Home() {
   const fileInputCameraRef = useRef<HTMLInputElement | null>(null);
   const resultRef = useRef<HTMLElement | null>(null);
   const [history, setHistory] = useState<
-    { id: string; createdAt: number; source: string; results: string[] }[]
+    { id: string; createdAt: number | string; source: string; results: string[]; description?: Record<string, unknown> | null }[]
   >([]);
+  const [currentItemId, setCurrentItemId] = useState<string | null>(null);
 
   // Informations sur le vêtement (marque, modèle, état) + toggle d'activation
   const [product, setProduct] = useState<{ brand: string; model: string; condition?: string }>(
@@ -107,8 +108,7 @@ export default function Home() {
     setError(null);
     setOutImages([]);
     try {
-      // Smoothly scroll to the results section
-      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Ne pas scroller tout de suite; on scrollera après avoir des images
     } catch {}
     try {
       const imgRes = await fetch("/api/generate-images", {
@@ -125,7 +125,9 @@ export default function Home() {
         createdAt: Date.now(),
         source: imageDataUrl,
         results: images,
+        description: null as Record<string, unknown> | null,
       };
+      setCurrentItemId(item.id);
       setHistory((h) => [item, ...h].slice(0, 50));
       try {
         localStorage.setItem("vintedboost_last", JSON.stringify(item));
@@ -142,6 +144,11 @@ export default function Home() {
           },
           2000
         );
+      } catch {}
+
+      // Smoothly scroll to the results section now that it exists
+      try {
+        resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       } catch {}
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -185,6 +192,42 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Erreur de génération");
       setDescResult(data);
+      // attach description to current item (local history + last)
+      try {
+        setHistory((h) => {
+          if (!currentItemId) return h;
+          const next = h.map((it) => (it.id === currentItemId ? { ...it, description: data } : it));
+          try { localStorage.setItem("vintedboost_history", JSON.stringify(next)); } catch {}
+          try {
+            const lastRaw = localStorage.getItem("vintedboost_last");
+            if (lastRaw) {
+              const last = JSON.parse(lastRaw);
+              if (last?.id === currentItemId) {
+                localStorage.setItem("vintedboost_last", JSON.stringify({ ...last, description: data }));
+              }
+            }
+          } catch {}
+          return next;
+        });
+      } catch {}
+      // upsert server history with description
+      try {
+        if (currentItemId) {
+          const cur = history.find((x) => x.id === currentItemId);
+          const payload = cur
+            ? { ...cur, description: data }
+            : { id: currentItemId, source: imageDataUrl!, results: outImages, createdAt: Date.now(), description: data };
+          await fetchWithTimeout(
+            "/api/history",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            },
+            2000
+          );
+        }
+      } catch {}
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setDescError(msg || "Erreur");
@@ -201,6 +244,8 @@ export default function Home() {
         const last = JSON.parse(rawLast);
         if (last?.source) setImageDataUrl(last.source);
         if (Array.isArray(last?.results)) setOutImages(last.results);
+        if (last?.description) setDescResult(last.description);
+        if (last?.id) setCurrentItemId(String(last.id));
       }
       const rawOpts = localStorage.getItem("vintedboost_options");
       if (rawOpts) {
@@ -239,7 +284,21 @@ export default function Home() {
         const res = await fetchWithTimeout("/api/history", { cache: "no-store" }, 2000);
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data?.items)) setHistory(data.items);
+          if (Array.isArray(data?.items)) {
+            const items = (data.items as unknown[]).map((raw) => {
+              const r = raw as Record<string, unknown>;
+              return {
+                id: String(r.id ?? ""),
+                createdAt: (r.createdAt as number | string) ?? Date.now(),
+                source: String(r.source ?? ""),
+                results: Array.isArray(r.results)
+                  ? (r.results as unknown[]).filter((x): x is string => typeof x === "string")
+                  : [],
+                description: (r.description as Record<string, unknown> | null) ?? null,
+              };
+            });
+            setHistory(items);
+          }
         }
       } catch {}
     })();
@@ -706,86 +765,64 @@ export default function Home() {
             ) : null}
           </section>
 
-          <section
-            ref={resultRef}
-            className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-2 md:row-start-1"
-          >
-            <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
-            {generating ? (
-              <div className="flex h-full min-h-40 flex-col items-center justify-center gap-3 text-sm text-gray-500 dark:text-gray-400" role="status" aria-live="polite">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent dark:border-brand-400 dark:border-t-transparent" aria-hidden="true" />
-                <div>Génération en cours…</div>
-              </div>
-            ) : outImages.length === 0 ? (
-              <div className="flex h-full min-h-40 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                Aucune image générée pour l’instant.
-              </div>
-            ) : (
-              <>
-                <ResultsGallery sourceUrl={imageDataUrl} results={outImages} />
-                {outImages.length > 1 ? (
-                  <div className="mt-3">
-                    <div className="mb-2 text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300">Autres résultats</div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {outImages.slice(1).map((u, i) => (
-                        <a
-                          key={`extra-${i}`}
-                          href={u}
-                          download={`tryon_${i + 2}.png`}
-                          title="Télécharger"
-                          className="group relative block overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
-                          style={{ aspectRatio: "4 / 5" }}
-                        >
-                          <Image src={u} alt={`supplément ${i + 2}`} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" unoptimized />
-                          <div className="absolute right-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white opacity-0 transition group-hover:opacity-100">DL</div>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                {descEnabled ? (
-                  <div className="mt-3">
-                    <DescriptionPanel data={descResult} generating={descGenerating} error={descError} />
-                  </div>
-                ) : null}
-              </>
-            )}
-            {(imageDataUrl || outImages.length > 0) ? (
-              <div className="mt-4 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditCollapsed(false);
-                    try {
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    } catch {}
-                  }}
-                  className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  Modifier
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!canGenerate) return;
-                    generate();
-                    if (descEnabled) {
-                      generateDescriptionFromPhoto();
-                    }
-                  }}
-                  disabled={!canGenerate}
-                  className={cx(
-                    "rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm transition",
-                    canGenerate
-                      ? "bg-brand-600 text-white hover:bg-brand-700"
-                      : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-                  )}
-                >
-                  {generating ? "Regénération…" : "Regénérer"}
-                </button>
-              </div>
-            ) : null}
-          </section>
+          {outImages.length > 0 ? (
+            <section
+              ref={resultRef}
+              className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-2 md:row-start-1"
+            >
+              <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
+              <ResultsGallery sourceUrl={imageDataUrl} results={outImages} />
+              {/* Description: afficher si déjà générée OU si le toggle est ON (y compris en cours/erreur) */}
+              {(descResult || descEnabled || descGenerating || descError) ? (
+                <div className="mt-3">
+                  <DescriptionPanel
+                    data={descResult}
+                    generating={descEnabled ? descGenerating : false}
+                    error={descEnabled ? descError : null}
+                  />
+                </div>
+              ) : null}
+              {(imageDataUrl || outImages.length > 0) ? (
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditCollapsed(false);
+                      try {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      } catch {}
+                    }}
+                    className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!canGenerate) return;
+                      generate();
+                      if (descEnabled) {
+                        generateDescriptionFromPhoto();
+                      } else {
+                        setDescResult(null);
+                        setDescError(null);
+                        setDescGenerating(false);
+                      }
+                    }}
+                    disabled={!canGenerate}
+                    className={cx(
+                      "rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm transition",
+                      canGenerate
+                        ? "bg-brand-600 text-white hover:bg-brand-700"
+                        : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                    )}
+                  >
+                    {generating ? "Regénération…" : "Regénérer"}
+                  </button>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
         </div>
 
         <section className="mt-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
@@ -832,6 +869,8 @@ export default function Home() {
                   onClick={() => {
                     setImageDataUrl(h.source);
                     setOutImages(h.results || []);
+                    setDescResult(h.description || null);
+                    setCurrentItemId(String(h.id));
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"

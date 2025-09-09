@@ -19,6 +19,18 @@ async function fileToDataURL(file: File): Promise<string> {
   });
 }
 
+// Small utility to avoid UI hanging on slow API routes
+async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs = 5000): Promise<Response> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(input, { ...(init || {}), signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 export default function Home() {
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -117,13 +129,17 @@ export default function Home() {
         localStorage.setItem("vintedboost_last", JSON.stringify(item));
       } catch {}
 
-      // Persist on server (Vercel Postgres)
+      // Persist on server (best-effort, do not block UI)
       try {
-        await fetch("/api/history", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(item),
-        });
+        await fetchWithTimeout(
+          "/api/history",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(item),
+          },
+          2000
+        );
       } catch {}
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -218,7 +234,7 @@ export default function Home() {
     // Attempt to hydrate from server history as source of truth when available
     (async () => {
       try {
-        const res = await fetch("/api/history", { cache: "no-store" });
+        const res = await fetchWithTimeout("/api/history", { cache: "no-store" }, 2000);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data?.items)) setHistory(data.items);

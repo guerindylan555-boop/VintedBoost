@@ -35,3 +35,9 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Force breaks anywhere to avoid horizontal overflow on very long tokens */
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

@@ -249,7 +249,7 @@ export default function MesAnnoncesPage() {
                     ) : null}
                   </div>
                   {(() => { const d = (h.description || null) as (null | { descriptionText?: string }); return d?.descriptionText; })() ? (
-                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2 break-words">
+                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2 break-anywhere">
                       {(((h.description || null) as null | { descriptionText?: string })?.descriptionText || "")}
                     </div>
                   ) : null}
@@ -299,7 +299,7 @@ export default function MesAnnoncesPage() {
                     ) : null}
                   </div>
                   {(() => { const d = (h.description || null) as (null | { descriptionText?: string }); return d?.descriptionText; })() ? (
-                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2 break-words">
+                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2 break-anywhere">
                       {(((h.description || null) as null | { descriptionText?: string })?.descriptionText || "")}
                     </div>
                   ) : null}

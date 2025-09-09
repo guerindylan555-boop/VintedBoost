@@ -413,6 +413,90 @@ export default function Home() {
                 />
               </div>
               
+              {descEnabled && (
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="brand">Marque</label>
+                    <input
+                      id="brand"
+                      type="text"
+                      placeholder="ex: Chanel, Nike, Zara..."
+                      value={product.brand}
+                      onChange={(e) => setProduct((p) => ({ ...p, brand: e.target.value }))}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">État</div>
+                    <div className="flex flex-wrap gap-2">
+                      {CONDITIONS.map((c) => (
+                        <button
+                          key={`prod-cond-top-${c}`}
+                          onClick={() => setProduct((p) => ({ ...p, condition: c }))}
+                          className={cx(
+                            "rounded-md border px-2 py-1 text-xs",
+                            product.condition === c
+                              ? "bg-brand-600 text-white border-brand-600"
+                              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                          )}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="model">Modèle</label>
+                    <input
+                      id="model"
+                      type="text"
+                      placeholder="Inconnu(e)"
+                      value={product.model}
+                      onChange={(e) => setProduct((p) => ({ ...p, model: e.target.value }))}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
+                    <div className="flex flex-wrap gap-2">
+                      {GENDERS.map((g) => (
+                        <button
+                          key={`prod-gender-top-${g}`}
+                          onClick={() => setOptions((o) => ({ ...o, gender: g }))}
+                          className={cx(
+                            "rounded-md border px-2 py-1 text-xs uppercase",
+                            options.gender === g
+                              ? "bg-brand-600 text-white border-brand-600"
+                              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                          )}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Taille du vêtement</div>
+                    <div className="flex flex-wrap gap-2">
+                      {SIZES.map((s) => (
+                        <button
+                          key={`prod-size-top-${s}`}
+                          onClick={() => setOptions((o) => ({ ...o, size: s }))}
+                          className={cx(
+                            "rounded-md border px-2 py-1 text-xs uppercase",
+                            options.size === s
+                              ? "bg-brand-600 text-white border-brand-600"
+                              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                          )}
+                        >
+                          {s.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-2">
                 <button
                   type="button"
@@ -551,55 +635,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Infos vêtement (optionnel, affiché si toggle description actif) */}
-                {descEnabled && (
-                  <div>
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-2">Infos vêtement</div>
-                    <div className="grid grid-cols-1 gap-3">
-                      <div>
-                        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="brand">Marque</label>
-                        <input
-                          id="brand"
-                          type="text"
-                          placeholder="ex: Nike, Zara, Levi's..."
-                          value={product.brand}
-                          onChange={(e) => setProduct((p) => ({ ...p, brand: e.target.value }))}
-                          className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
-                        />
-                      </div>
-                      <div>
-                        <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">État</div>
-                        <div className="flex flex-wrap gap-2">
-                          {CONDITIONS.map((c) => (
-                            <button
-                              key={`prod-cond-inline-${c}`}
-                              onClick={() => setProduct((p) => ({ ...p, condition: c }))}
-                              className={cx(
-                                "rounded-md border px-2 py-1 text-xs",
-                                product.condition === c
-                                  ? "bg-brand-600 text-white border-brand-600"
-                                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
-                              )}
-                            >
-                              {c}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="model">Modèle</label>
-                        <input
-                          id="model"
-                          type="text"
-                          placeholder="ex: Air Max 90, Veste Trucker..."
-                          value={product.model}
-                          onChange={(e) => setProduct((p) => ({ ...p, model: e.target.value }))}
-                          className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Infos vêtement déplacé plus haut lorsqu'activé */}
 
                 <div>
                   <div className="flex items-center justify-between">

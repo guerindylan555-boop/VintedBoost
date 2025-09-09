@@ -159,10 +159,7 @@ export async function POST(req: NextRequest) {
       } else {
         const parts = [
           { text: instruction },
-          {
-            inlineData: { mimeType, data: base64Data },
-            inline_data: { mime_type: mimeType, data: base64Data },
-          },
+          { inlineData: { mimeType, data: base64Data } },
         ];
         const payload = { contents: [{ role: "user", parts }] };
         const data = await googleAiFetch(payload, { cache: "no-store" });

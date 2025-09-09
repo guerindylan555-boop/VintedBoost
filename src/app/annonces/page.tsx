@@ -33,7 +33,7 @@ export default function MesAnnoncesPage() {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [hasDescOnly, setHasDescOnly] = useState(false);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");

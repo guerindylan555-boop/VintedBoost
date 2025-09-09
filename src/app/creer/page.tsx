@@ -23,9 +23,13 @@ async function fileToDataURL(file: File): Promise<string> {
 
 function newId(): string {
   try {
-    // @ts-ignore
-    const id = crypto?.randomUUID?.();
-    if (id) return id as string;
+    if (typeof crypto !== "undefined") {
+      const maybe = (crypto as unknown as { randomUUID?: () => string })?.randomUUID;
+      if (typeof maybe === "function") {
+        const id = maybe();
+        if (id) return id;
+      }
+    }
   } catch {}
   return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -592,4 +596,3 @@ export default function CreatePage() {
     </div>
   );
 }
-

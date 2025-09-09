@@ -13,10 +13,6 @@ type Item = {
   description?: Record<string, unknown> | null;
 };
 
-function cx(...xs: Array<string | false | undefined>) {
-  return xs.filter(Boolean).join(" ");
-}
-
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs = 2000): Promise<Response> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
@@ -121,4 +117,3 @@ export default function AnnonceDetailPage() {
     </div>
   );
 }
-

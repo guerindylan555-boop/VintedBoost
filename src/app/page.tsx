@@ -5,6 +5,8 @@ import { buildInstruction, type MannequinOptions } from "@/lib/prompt";
 import Image from "next/image";
 import Toggle from "@/components/Toggle";
 import ThemeToggle from "@/components/ThemeToggle";
+import ResultsGallery from "@/components/ResultsGallery";
+import DescriptionPanel from "@/components/DescriptionPanel";
 
 function cx(...xs: Array<string | false | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -709,22 +711,6 @@ export default function Home() {
             className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-2 md:row-start-1"
           >
             <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
-            {imageDataUrl ? (
-              <div className="mb-3 flex items-center gap-3">
-                <Image
-                  src={imageDataUrl}
-                  alt="image source"
-                  width={72}
-                  height={72}
-                  className="shrink-0 rounded-md border object-contain dark:border-gray-700 bg-white"
-                  unoptimized
-                />
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Image source (non portée)</div>
-                  <div className="text-[11px] text-gray-500 dark:text-gray-400">Toujours visible en mode résultat</div>
-                </div>
-              </div>
-            ) : null}
             {generating ? (
               <div className="flex h-full min-h-40 flex-col items-center justify-center gap-3 text-sm text-gray-500 dark:text-gray-400" role="status" aria-live="polite">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent dark:border-brand-400 dark:border-t-transparent" aria-hidden="true" />
@@ -735,87 +721,34 @@ export default function Home() {
                 Aucune image générée pour l’instant.
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
-                {outImages.map((u, i) => (
-                  <a
-                    key={i}
-                    href={u}
-                    download={`tryon_${i + 1}.png`}
-                    className="group relative block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"
-                    style={{ aspectRatio: "4 / 5" }}
-                    title="Télécharger"
-                  >
-                    <Image
-                      src={u}
-                      alt={`sortie ${i + 1}`}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 50vw"
-                      className="object-cover"
-                      unoptimized
-                    />
-                    <div className="absolute right-2 top-2 rounded-md bg-black/60 dark:bg-black/70 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
-                      Télécharger
-                    </div>
-                  </a>
-                ))}
-                {descEnabled ? (
+              <>
+                <ResultsGallery sourceUrl={imageDataUrl} results={outImages} />
+                {outImages.length > 1 ? (
                   <div className="mt-3">
-                    {descGenerating ? (
-                      <div className="text-sm text-gray-500 dark:text-gray-400">Génération de la description…</div>
-                    ) : descError ? (
-                      <div className="text-sm text-red-600 dark:text-red-400">{descError}</div>
-                    ) : descResult ? (
-                      <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/60 p-2">
-                        <div className="text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1">Description générée</div>
-                        <textarea
-                          readOnly
-                          className="w-full min-h-28 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs"
-                          value={(() => {
-                            try {
-                              const d = descResult as Record<string, unknown>;
-                              const proposalsRaw = d["proposals"];
-                              if (Array.isArray(proposalsRaw) && proposalsRaw.length) {
-                                const blocks = proposalsRaw.slice(0, 3).map((p, idx) => {
-                                  const obj = (p ?? {}) as Record<string, unknown>;
-                                  const title = typeof obj["title"] === "string" ? (obj["title"] as string) : "";
-                                  const bpRaw = obj["bulletPoints"];
-                                  const bpArr = Array.isArray(bpRaw) ? (bpRaw as unknown[]) : [];
-                                  const bullets = bpArr
-                                    .filter((x): x is string => typeof x === "string")
-                                    .map((b) => `• ${b}`)
-                                    .join("\n");
-                                  const text = typeof obj["descriptionText"] === "string" ? (obj["descriptionText"] as string) : "";
-                                  const brand = typeof obj["brand"] === "string" && obj["brand"] ? `Marque: ${obj["brand"]}\n` : "";
-                                  const model = typeof obj["model"] === "string" && obj["model"] ? `Modèle: ${obj["model"]}\n` : "";
-                                  return [title, brand + model, bullets, text].filter(Boolean).join("\n\n");
-                                });
-                                return blocks.join("\n\n\n");
-                              }
-                              const titleVal = d["title"];
-                              const title = typeof titleVal === "string" ? titleVal : "";
-                              const bulletsRaw = d["bulletPoints"];
-                              const bulletsArr = Array.isArray(bulletsRaw) ? (bulletsRaw as unknown[]) : [];
-                              const bullets = bulletsArr
-                                .filter((x): x is string => typeof x === "string")
-                                .map((b) => `• ${b}`)
-                                .join("\n");
-                              const textVal = d["descriptionText"];
-                              const text = typeof textVal === "string" ? textVal : "";
-                              const brandVal = d["brand"];
-                              const brand = typeof brandVal === "string" && brandVal ? `Marque: ${brandVal}\n` : "";
-                              const modelVal = d["model"];
-                              const model = typeof modelVal === "string" && modelVal ? `Modèle: ${modelVal}\n` : "";
-                              return [title, brand + model, bullets, text].filter(Boolean).join("\n\n").trim() || JSON.stringify(d, null, 2);
-                            } catch {
-                              return JSON.stringify(descResult, null, 2);
-                            }
-                          })()}
-                        />
-                      </div>
-                    ) : null}
+                    <div className="mb-2 text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300">Autres résultats</div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {outImages.slice(1).map((u, i) => (
+                        <a
+                          key={`extra-${i}`}
+                          href={u}
+                          download={`tryon_${i + 2}.png`}
+                          title="Télécharger"
+                          className="group relative block overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
+                          style={{ aspectRatio: "4 / 5" }}
+                        >
+                          <Image src={u} alt={`supplément ${i + 2}`} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" unoptimized />
+                          <div className="absolute right-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white opacity-0 transition group-hover:opacity-100">DL</div>
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
-              </div>
+                {descEnabled ? (
+                  <div className="mt-3">
+                    <DescriptionPanel data={descResult} generating={descGenerating} error={descError} />
+                  </div>
+                ) : null}
+              </>
             )}
             {(imageDataUrl || outImages.length > 0) ? (
               <div className="mt-4 flex items-center justify-end gap-2">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import BottomDock from "@/components/BottomDock";
 
 const poppins = Poppins({
   variable: "--font-geist-sans",
@@ -34,7 +35,13 @@ export default function RootLayout({
             __html: `(() => { try { const t = localStorage.getItem('theme'); const d = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches; const e = document.documentElement; d ? e.classList.add('dark') : e.classList.remove('dark'); } catch(_) {} })();`,
           }}
         />
-        {children}
+        <div
+          className="pb-24"
+          style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
+        >
+          {children}
+        </div>
+        <BottomDock />
       </body>
     </html>
   );

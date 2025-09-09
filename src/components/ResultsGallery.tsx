@@ -95,12 +95,12 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
           scrollBehavior: "smooth",
         }}
       >
-        <div className="flex" style={{ width: `${slides.length * 100}%` }}>
+        <div className="flex w-full">
           {slides.map((u, i) => (
             <div
               id={`result-slide-${i}`}
               key={i}
-              className="relative shrink-0 grow-0 basis-full snap-start"
+              className="relative w-full flex-none snap-start"
               aria-roledescription="slide"
               aria-label={`${i + 1} sur ${slides.length}`}
             >

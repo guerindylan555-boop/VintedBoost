@@ -46,7 +46,8 @@ export default function Home() {
     style: "amateur",
   });
   const [showPrompt, setShowPrompt] = useState(false);
-  const [optionsOpen, setOptionsOpen] = useState(true);
+  const [optionsOpen, setOptionsOpen] = useState(true); // animation container for advanced options
+  const [imageOptsEnabled, setImageOptsEnabled] = useState(true);
   // Toggle de génération de description et état de rétraction de l'édition
   const [descEnabled, setDescEnabled] = useState(false);
   const [editCollapsed, setEditCollapsed] = useState(false);
@@ -194,6 +195,11 @@ export default function Home() {
           setOptions((prev) => ({ ...prev, ...o }));
         } catch {}
       }
+      const rawImgOptsEnabled = localStorage.getItem("vintedboost_image_options_enabled");
+      if (rawImgOptsEnabled != null) {
+        setImageOptsEnabled(rawImgOptsEnabled === "true");
+        setOptionsOpen(rawImgOptsEnabled === "true");
+      }
       const rawProd = localStorage.getItem("vintedboost_product");
       if (rawProd) {
         try {
@@ -238,6 +244,12 @@ export default function Home() {
       localStorage.setItem("vintedboost_product", JSON.stringify(product));
     } catch {}
   }, [product]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("vintedboost_image_options_enabled", String(imageOptsEnabled));
+    } catch {}
+  }, [imageOptsEnabled]);
 
   // plus de persistance séparée pour productEnabled (fusion avec descEnabled)
 
@@ -497,84 +509,72 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="mt-2">
-                <button
-                  type="button"
-                  aria-expanded={optionsOpen}
-                  aria-controls="options-content"
-                  onClick={() => setOptionsOpen((v) => !v)}
-                className="mb-2 flex w-full items-center justify-between rounded-md px-2 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
+              {/* En-tête Options d'image avec toggle */}
+              <div className="mt-2 mb-1 flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300">
                   Options d’image
                 </span>
-                <svg
-                  aria-hidden
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={cx(
-                    "h-4 w-4 text-gray-500 transition-transform duration-300 ease-in-out motion-reduce:transition-none",
-                    optionsOpen ? "rotate-180" : "rotate-0"
-                  )}
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
+                <Toggle
+                  checked={imageOptsEnabled}
+                  onChange={(v) => {
+                    setImageOptsEnabled(v);
+                    setOptionsOpen(v);
+                  }}
+                  ariaLabel="Activer la modification des options d’image"
+                />
+              </div>
+              {/* Genre/Taille toujours visibles si la description n'est pas activée */}
+              {!descEnabled && (
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
+                    <div className="flex flex-wrap gap-2">
+                      {GENDERS.map((g) => (
+                        <button
+                          key={`gender-under-${g}`}
+                          onClick={() => setOptions((o) => ({ ...o, gender: g }))}
+                          className={cx(
+                            "rounded-md border px-2 py-1 text-xs uppercase",
+                            options.gender === g
+                              ? "bg-brand-600 text-white border-brand-600"
+                              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                          )}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Taille du vêtement</div>
+                    <div className="flex flex-wrap gap-2">
+                      {SIZES.map((s) => (
+                        <button
+                          key={`size-under-${s}`}
+                          onClick={() => setOptions((o) => ({ ...o, size: s }))}
+                          className={cx(
+                            "rounded-md border px-2 py-1 text-xs uppercase",
+                            options.size === s
+                              ? "bg-brand-600 text-white border-brand-600"
+                              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                          )}
+                        >
+                          {s.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div
                 id="options-content"
                 className={cx(
                   "grid grid-cols-1 gap-3 overflow-hidden transition-all duration-300 ease-in-out motion-reduce:transition-none",
-                  optionsOpen ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"
+                  optionsOpen && imageOptsEnabled ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"
                 )}
               >
-                {!descEnabled && (
-                  <>
-                    <div>
-                      <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
-                      <div className="flex flex-wrap gap-2">
-                        {GENDERS.map((g) => (
-                          <button
-                            key={g}
-                            onClick={() => setOptions((o) => ({ ...o, gender: g }))}
-                            className={cx(
-                              "rounded-md border px-2 py-1 text-xs uppercase",
-                              options.gender === g
-                                ? "bg-brand-600 text-white border-brand-600"
-                                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
-                            )}
-                          >
-                            {g}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Taille du vêtement</div>
-                      <div className="flex flex-wrap gap-2">
-                        {SIZES.map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => setOptions((o) => ({ ...o, size: s }))}
-                            className={cx(
-                              "rounded-md border px-2 py-1 text-xs uppercase",
-                              options.size === s
-                                ? "bg-brand-600 text-white border-brand-600"
-                                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
-                            )}
-                          >
-                            {s.toUpperCase()}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
+                {/* Options avancées modifiables seulement si imageOptsEnabled */}
+                
                 <div>
                   <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Pose</div>
                   <div className="flex flex-wrap gap-2">
@@ -651,7 +651,6 @@ export default function Home() {
                   )}
                 </div>
               </div>
-            </div>
             </div>
 
             <div className="mt-4 flex items-center gap-2">

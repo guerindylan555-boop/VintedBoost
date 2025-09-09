@@ -197,7 +197,7 @@ export default function MesAnnoncesPage() {
             <Image src="/file.svg" alt="empty" width={64} height={64} className="opacity-70" />
             <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">Aucune annonce trouvée.</div>
             <Link
-              href="/"
+              href="/creer"
               className="mt-4 inline-flex items-center gap-2 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700"
             >
               Créer ma première annonce

@@ -839,77 +839,7 @@ export default function Home() {
           ) : null}
         </div>
 
-        <section className="mt-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold uppercase tracking-wide">Historique</h2>
-            {history.length > 0 && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    try {
-                      const blob = new Blob([
-                        JSON.stringify(history, null, 2),
-                      ], { type: "application/json" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = "vintedboost_history.json";
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    } catch {}
-                  }}
-                  className="text-xs rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  Exporter
-                </button>
-                <button
-                  onClick={() => setHistory([])}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                >
-                  Effacer
-                </button>
-              </div>
-            )}
-          </div>
-          {history.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Aucune génération enregistrée pour l’instant.
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {history.map((h) => (
-                <button
-                  key={h.id}
-                  onClick={() => {
-                    setImageDataUrl(h.source);
-                    setOutImages(h.results || []);
-                    setDescResult(h.description || null);
-                    setCurrentItemId(String(h.id));
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  <Image
-                    src={h.source}
-                    alt="source"
-                    width={64}
-                    height={64}
-                    className="shrink-0 rounded-md border object-contain dark:border-gray-700"
-                    unoptimized
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {new Date(h.createdAt).toLocaleString()}
-                    </div>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                      <span>{h.results.length} résultat(s)</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
+        {/* Historique retiré de la page d'édition; géré dans /annonces */}
       </main>
     </div>
   );

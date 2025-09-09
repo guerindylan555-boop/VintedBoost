@@ -31,7 +31,7 @@ export default function BottomDock() {
           </Link>
 
           <Link
-            href="/"
+            href="/creer"
             className="flex flex-col items-center justify-center gap-1 rounded-md py-2 bg-brand-600 text-white hover:bg-brand-700 shadow-sm"
             aria-label="Créer une annonce"
           >

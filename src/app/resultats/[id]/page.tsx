@@ -20,6 +20,7 @@ type Item = {
     product: { brand: string; model: string; condition?: string };
     descEnabled: boolean;
   };
+  title?: string;
 };
 
 function upsertLocalHistory(item: Item) {
@@ -55,6 +56,10 @@ export default function ResultatsPage() {
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+  const [title, setTitle] = useState("");
+  const [savingEdits, setSavingEdits] = useState(false);
+  const [editDescMode, setEditDescMode] = useState(false);
+  const [descText, setDescText] = useState("");
 
   // Load item
   useEffect(() => {
@@ -79,6 +84,13 @@ export default function ResultatsPage() {
     }
     setItem(found);
     setLoadingItem(false);
+    try {
+      const desc = (found?.description || null) as (null | { title?: string; descriptionText?: string });
+      const t = (found?.title || desc?.title || "").toString();
+      if (t) setTitle(String(t));
+      const d = (desc?.descriptionText || "").toString();
+      if (d) setDescText(String(d));
+    } catch {}
   }, [id]);
 
   const descEnabled = Boolean(item?.meta?.descEnabled);
@@ -152,19 +164,39 @@ export default function ResultatsPage() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || "Échec de la génération de la description");
-        const withDesc: Item = { ...withImages, description: data };
+        // Auto-title if missing
+        let nextTitle = (title || "").trim();
+        if (!nextTitle) {
+          const dTitle = typeof data?.title === "string" ? (data.title as string) : "";
+          if (dTitle) nextTitle = dTitle;
+          else {
+            const brand = (withImages.meta?.product.brand || "").trim();
+            const model = (withImages.meta?.product.model || "").trim();
+            const size = (withImages.meta?.options.size || "").toString().toUpperCase();
+            const base = [brand, model].filter(Boolean).join(" ");
+            if (base) nextTitle = size ? `${base} (${size})` : base;
+            if (!nextTitle) {
+              const text = typeof data?.descriptionText === "string" ? (data.descriptionText as string) : "";
+              if (text) nextTitle = text.slice(0, 60).replace(/\s+\S*$/, "").trim();
+            }
+            if (!nextTitle) nextTitle = `Annonce du ${new Date(withImages.createdAt).toLocaleDateString()}`;
+          }
+        }
+        const withDesc: Item = { ...withImages, description: data, title: nextTitle };
         setItem(withDesc);
+        setTitle(withDesc.title || "");
+        setDescText(typeof data?.descriptionText === "string" ? (data.descriptionText as string) : "");
         upsertLocalHistory(withDesc);
         try {
           const patchRes = await fetchWithTimeout(
             `/api/history/${encodeURIComponent(String(item.id))}`,
-            { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: data }) },
+            { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: { ...data, title: withDesc.title || data?.title } }) },
             2000
           );
           if (!patchRes.ok) {
             await fetchWithTimeout(
               "/api/history",
-              { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, source: item.source, results: images, createdAt: item.createdAt, description: data }) },
+              { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, source: item.source, results: images, createdAt: item.createdAt, description: { ...data, title: withDesc.title || data?.title } }) },
               2000
             );
           }
@@ -194,7 +226,9 @@ export default function ResultatsPage() {
 
   function saveDraft() {
     if (!item) return;
-    const updated: Item = { ...item, status: "draft", updatedAt: Date.now() };
+    const prevDesc = (item.description || null) as (null | { title?: string; [k: string]: unknown });
+    const nextDesc: Record<string, unknown> | null = prevDesc ? { ...prevDesc, title: (title || "").trim() || prevDesc.title } : item.description ?? null;
+    const updated: Item = { ...item, title: (title || "").trim() || item.title, description: nextDesc, status: "draft", updatedAt: Date.now() };
     setItem(updated);
     upsertLocalHistory(updated);
     try {
@@ -207,7 +241,9 @@ export default function ResultatsPage() {
   }
   function saveFinal() {
     if (!item) return;
-    const updated: Item = { ...item, status: "final", updatedAt: Date.now() };
+    const prevDesc = (item.description || null) as (null | { title?: string; [k: string]: unknown });
+    const nextDesc: Record<string, unknown> | null = prevDesc ? { ...prevDesc, title: (title || "").trim() || prevDesc.title } : item.description ?? null;
+    const updated: Item = { ...item, title: (title || "").trim() || item.title, description: nextDesc, status: "final", updatedAt: Date.now() };
     setItem(updated);
     upsertLocalHistory(updated);
     try {
@@ -217,6 +253,36 @@ export default function ResultatsPage() {
         2000
       );
     } catch {}
+  }
+
+  async function saveTitleAndDescription() {
+    if (!item) return;
+    setSavingEdits(true);
+    try {
+      const prevDesc = (item.description || null) as (null | { title?: string; descriptionText?: string; [k: string]: unknown });
+      const nextDesc: Record<string, unknown> = prevDesc ? { ...prevDesc, title: (title || "").trim() || prevDesc.title, descriptionText: descText } : { title: (title || "").trim() || undefined, descriptionText: descText };
+      const updated: Item = { ...item, title: title?.trim() || item.title, description: nextDesc, updatedAt: Date.now() };
+      setItem(updated);
+      upsertLocalHistory(updated);
+      // PATCH server
+      try {
+        const resp = await fetchWithTimeout(
+          `/api/history/${encodeURIComponent(String(item.id))}`,
+          { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: nextDesc }) },
+          2000
+        );
+        if (!resp.ok) {
+          await fetchWithTimeout(
+            "/api/history",
+            { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, source: item.source, results: item.results, createdAt: item.createdAt, description: nextDesc }) },
+            2000
+          );
+        }
+      } catch {}
+      setEditDescMode(false);
+    } finally {
+      setSavingEdits(false);
+    }
   }
 
   if (loadingItem) {
@@ -243,7 +309,16 @@ export default function ResultatsPage() {
   return (
     <div className="mx-auto max-w-screen-md p-4">
       <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
-        <h1 className="mb-3 text-base font-semibold uppercase tracking-wide">Résultat</h1>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h1 className="text-base font-semibold uppercase tracking-wide">Résultat</h1>
+        </div>
+        <div className="mb-3">
+          <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Titre de l’annonce</label>
+          <div className="flex items-center gap-2">
+            <input value={title} onChange={(e)=>setTitle(e.target.value)} maxLength={100} className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm" />
+            <button onClick={saveTitleAndDescription} disabled={savingEdits} className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60">{savingEdits?"Enregistrement…":"Enregistrer"}</button>
+          </div>
+        </div>
         {showLoading ? (
           <LoadingScreen
             title="Génération en cours"
@@ -269,11 +344,25 @@ export default function ResultatsPage() {
         ) : (
           <>
             <ResultsGallery sourceUrl={item.source} results={item.results} />
-            {item.description ? (
-              <div className="mt-3">
-                <DescriptionPanel data={item.description} />
-              </div>
-            ) : null}
+            <div className="mt-3">
+              {!editDescMode ? (
+                <>
+                  <DescriptionPanel data={item.description || null} />
+                  <div className="mt-2 flex items-center justify-end">
+                    <button onClick={()=>setEditDescMode(true)} className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">Modifier la description</button>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/60 p-3">
+                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Description</label>
+                  <textarea value={descText} onChange={(e)=>setDescText(e.target.value)} className="w-full min-h-40 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200" />
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    <button onClick={()=>setEditDescMode(false)} className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">Annuler</button>
+                    <button onClick={saveTitleAndDescription} disabled={savingEdits} className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60">{savingEdits?"Enregistrement…":"Enregistrer"}</button>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button type="button" onClick={() => router.push("/creer")} className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">Créer une autre annonce</button>
               <button type="button" onClick={saveDraft} className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">Enregistrer en brouillon</button>

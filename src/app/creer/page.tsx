@@ -58,6 +58,7 @@ type HistItem = {
     product: { brand: string; model: string; condition?: string };
     descEnabled: boolean;
   };
+  title?: string;
 };
 
 export default function CreatePage() {
@@ -76,6 +77,7 @@ export default function CreatePage() {
   const [product, setProduct] = useState<{ brand: string; model: string; condition?: string }>(
     { brand: "", model: "", condition: "" }
   );
+  const [title, setTitle] = useState("");
 
   const [options, setOptions] = useState<MannequinOptions>({
     gender: "femme",
@@ -161,6 +163,7 @@ export default function CreatePage() {
             results: [],
             description: null,
             status: "draft",
+            title: title?.trim() || undefined,
           };
           upsertLocalHistory(item);
           // Best-effort server persist
@@ -192,6 +195,7 @@ export default function CreatePage() {
         product,
         descEnabled,
       },
+      title: title?.trim() || undefined,
     };
     upsertLocalHistory(item);
     persistServer(item);
@@ -288,6 +292,16 @@ export default function CreatePage() {
         <div className="grid gap-6 md:grid-cols-2">
           {/* Carte: Annonce (upload, toggle description, options) */}
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm md:col-start-1 md:row-start-1">
+            <div className="mb-3">
+              <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Titre de l’annonce</label>
+              <input
+                placeholder="Ex: Robe Zara noire taille S"
+                value={title}
+                onChange={(e)=>setTitle(e.target.value)}
+                maxLength={100}
+                className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+              />
+            </div>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-base font-semibold uppercase tracking-wide">Annonce</h2>
               <div className="flex items-center gap-2">

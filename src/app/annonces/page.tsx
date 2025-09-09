@@ -13,6 +13,7 @@ type Item = {
   results: string[];
   description?: Record<string, unknown> | null;
   status?: "draft" | "final";
+  title?: string;
 };
 
 function cx(...xs: Array<string | false | undefined>) {
@@ -224,7 +225,10 @@ export default function MesAnnoncesPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">
-                    {new Date(h.createdAt).toLocaleString()}
+                    {(() => {
+                      const desc = (h.description || null) as (null | { title?: string; descriptionText?: string });
+                      return h.title?.trim() || (desc?.title || "").toString() || new Date(h.createdAt).toLocaleString();
+                    })()}
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <span>{h.results.length} résultat(s)</span>
@@ -244,12 +248,17 @@ export default function MesAnnoncesPage() {
                       </span>
                     ) : null}
                   </div>
+                  {(() => { const d = (h.description || null) as (null | { descriptionText?: string }); return d?.descriptionText; })() ? (
+                    <div className="mt-1 truncate text-xs text-gray-600 dark:text-gray-300">
+                      {(((h.description || null) as null | { descriptionText?: string })?.descriptionText || "").slice(0, 140)}
+                    </div>
+                  ) : null}
                 </div>
               </button>
             ))}
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3">
             {filtered.map((h) => (
               <button
                 key={h.id}
@@ -266,7 +275,10 @@ export default function MesAnnoncesPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">
-                    {new Date(h.createdAt).toLocaleString()}
+                    {(() => {
+                      const desc = (h.description || null) as (null | { title?: string; descriptionText?: string });
+                      return h.title?.trim() || (desc?.title || "").toString() || new Date(h.createdAt).toLocaleString();
+                    })()}
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <span>{h.results.length} résultat(s)</span>
@@ -286,6 +298,11 @@ export default function MesAnnoncesPage() {
                       </span>
                     ) : null}
                   </div>
+                  {(() => { const d = (h.description || null) as (null | { descriptionText?: string }); return d?.descriptionText; })() ? (
+                    <div className="mt-1 truncate text-xs text-gray-600 dark:text-gray-300">
+                      {(((h.description || null) as null | { descriptionText?: string })?.descriptionText || "").slice(0, 140)}
+                    </div>
+                  ) : null}
                 </div>
               </button>
             ))}

@@ -52,7 +52,7 @@ export async function normalizeImageDataUrl(dataUrl: string): Promise<string> {
       .jpeg({ quality: 85 })
       .toBuffer();
     return `data:image/jpeg;base64,${out.toString("base64")}`;
-  } catch (e) {
+  } catch {
     throw new Error("Failed to normalize image");
   }
 }

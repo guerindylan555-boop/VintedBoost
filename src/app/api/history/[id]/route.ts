@@ -95,3 +95,24 @@ export async function PATCH(req: Request, context: unknown) {
   }
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(_req: Request, context: unknown) {
+  const params = (context as { params?: Record<string, string> })?.params || {};
+  const id = params.id;
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+  const sessionId = await getSessionId();
+  if (!sessionId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await ensureTable();
+  const result = await sql`
+    DELETE FROM history_items
+    WHERE id = ${id} AND session_id = ${sessionId}
+  `;
+  if ((result as unknown as { rowCount?: number }).rowCount === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
+}

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Toggle from "@/components/Toggle";
+ 
 
 type Item = {
   id: string;
@@ -37,9 +37,8 @@ export default function MesAnnoncesPage() {
   const [loading, setLoading] = useState(true);
   const [error] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [hasDescOnly, setHasDescOnly] = useState(false);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
-  const [view, setView] = useState<"list" | "grid">("list");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // Hydrate from localStorage first
   useEffect(() => {
@@ -81,7 +80,6 @@ export default function MesAnnoncesPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = items.filter((it) => {
-      if (hasDescOnly && !it.description) return false;
       if (!q) return true;
       const hay = [
         new Date(it.createdAt).toLocaleString().toLowerCase(),
@@ -96,13 +94,66 @@ export default function MesAnnoncesPage() {
       return sortOrder === "desc" ? tb - ta : ta - tb;
     });
     return sorted;
-  }, [items, query, hasDescOnly, sortOrder]);
+  }, [items, query, sortOrder]);
 
   function openItem(it: Item) {
     try {
       localStorage.setItem("vintedboost_last", JSON.stringify(it));
     } catch {}
     router.push(`/annonces/${encodeURIComponent(String(it.id))}`);
+  }
+
+  async function duplicateItem(it: Item) {
+    const newId = (typeof crypto !== "undefined" && (crypto as unknown as { randomUUID?: () => string }).randomUUID)
+      ? (crypto as unknown as { randomUUID: () => string }).randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const clone: Item = {
+      id: newId,
+      createdAt: Date.now(),
+      source: it.source,
+      results: [...it.results],
+      description: it.description ? { ...(it.description as Record<string, unknown>) } : null,
+      status: it.status,
+      title: it.title,
+    };
+    setItems((prev) => [clone, ...prev]);
+    try {
+      const raw = localStorage.getItem("vintedboost_history");
+      const local = raw ? (JSON.parse(raw) as Item[]) : [];
+      const next = Array.isArray(local) ? [clone, ...local] : [clone];
+      localStorage.setItem("vintedboost_history", JSON.stringify(next));
+    } catch {}
+    try {
+      await fetch("/api/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: clone.id,
+          source: clone.source,
+          results: clone.results,
+          createdAt: clone.createdAt,
+          description: clone.description ?? null,
+        }),
+      });
+    } catch {}
+  }
+
+  async function deleteItem(id: string) {
+    setItems((prev) => prev.filter((x) => String(x.id) !== String(id)));
+    try {
+      const raw = localStorage.getItem("vintedboost_history");
+      const local = raw ? (JSON.parse(raw) as Item[]) : [];
+      const next = Array.isArray(local) ? local.filter((x) => String(x.id) !== String(id)) : [];
+      localStorage.setItem("vintedboost_history", JSON.stringify(next));
+      const lastRaw = localStorage.getItem("vintedboost_last");
+      if (lastRaw) {
+        const last = JSON.parse(lastRaw) as Item;
+        if (String(last?.id) === String(id)) localStorage.removeItem("vintedboost_last");
+      }
+    } catch {}
+    try {
+      await fetch(`/api/history/${encodeURIComponent(String(id))}`, { method: "DELETE" });
+    } catch {}
   }
 
   return (
@@ -138,10 +189,6 @@ export default function MesAnnoncesPage() {
       </header>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wider text-gray-600 dark:text-gray-300">Avec description</span>
-          <Toggle checked={hasDescOnly} onChange={setHasDescOnly} ariaLabel="Filtrer avec description" />
-        </div>
         <div className="ml-auto flex items-center gap-2">
           <label className="text-xs text-gray-600 dark:text-gray-300">Tri</label>
           <select
@@ -152,30 +199,6 @@ export default function MesAnnoncesPage() {
             <option value="desc">Plus récent</option>
             <option value="asc">Plus ancien</option>
           </select>
-          <div className="ml-2 inline-flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={cx(
-                "px-2 py-1 text-xs",
-                view === "list" ? "bg-gray-100 dark:bg-gray-800" : "bg-transparent"
-              )}
-              aria-label="Vue liste"
-            >
-              Liste
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("grid")}
-              className={cx(
-                "px-2 py-1 text-xs",
-                view === "grid" ? "bg-gray-100 dark:bg-gray-800" : "bg-transparent"
-              )}
-              aria-label="Vue grille"
-            >
-              Grille
-            </button>
-          </div>
         </div>
       </div>
 
@@ -205,65 +228,13 @@ export default function MesAnnoncesPage() {
               Créer ma première annonce
             </Link>
           </div>
-        ) : view === "grid" ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {filtered.map((h) => (
-              <button
-                key={h.id}
-                onClick={() => openItem(h)}
-                className="rounded-xl border border-gray-200 dark:border-gray-700 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
-                <div className="relative mb-2 aspect-[4/3] w-full overflow-hidden rounded-md border dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                  <Image
-                    src={h.source}
-                    alt="source"
-                    fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    className="object-contain"
-                    unoptimized
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">
-                    {(() => {
-                      const desc = (h.description || null) as (null | { title?: string; descriptionText?: string });
-                      return h.title?.trim() || (desc?.title || "").toString() || new Date(h.createdAt).toLocaleString();
-                    })()}
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <span>{h.results.length} résultat(s)</span>
-                    {h.status === "draft" ? (
-                      <span className="rounded border border-amber-500/30 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-300">
-                        Brouillon
-                      </span>
-                    ) : null}
-                    {h.status === "final" ? (
-                      <span className="rounded border border-teal-500/30 bg-teal-50 px-1.5 py-0.5 text-[10px] text-teal-700 dark:border-teal-500/30 dark:bg-teal-900/20 dark:text-teal-300">
-                        Définitive
-                      </span>
-                    ) : null}
-                    {h.description ? (
-                      <span className="rounded border border-emerald-500/30 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:text-emerald-300">
-                        Description
-                      </span>
-                    ) : null}
-                  </div>
-                  {(() => { const d = (h.description || null) as (null | { descriptionText?: string }); return d?.descriptionText; })() ? (
-                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2 break-anywhere">
-                      {(((h.description || null) as null | { descriptionText?: string })?.descriptionText || "")}
-                    </div>
-                  ) : null}
-                </div>
-              </button>
-            ))}
-          </div>
         ) : (
           <div className="grid gap-3">
             {filtered.map((h) => (
-              <button
+              <div
                 key={h.id}
                 onClick={() => openItem(h)}
-                className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="relative flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
               >
                 <Image
                   src={h.source}
@@ -304,7 +275,31 @@ export default function MesAnnoncesPage() {
                     </div>
                   ) : null}
                 </div>
-              </button>
+                <div className="ml-2 self-start">
+                  <button
+                    type="button"
+                    aria-label="Actions"
+                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === h.id ? null : h.id); }}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                      <path d="M12 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" />
+                    </svg>
+                  </button>
+                  {openMenuId === h.id ? (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-2 top-12 z-10 min-w-44 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg"
+                    >
+                      <button className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => { setOpenMenuId(null); openItem(h); }}>Voir</button>
+                      <button className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => { setOpenMenuId(null); openItem(h); }}>Éditer</button>
+                      <button className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={async () => { setOpenMenuId(null); await duplicateItem(h); }}>Dupliquer</button>
+                      <button className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={async () => { setOpenMenuId(null); await deleteItem(h.id); }}>Supprimer</button>
+                      <button className="block w-full px-3 py-2 text-left text-sm opacity-50 cursor-default" disabled aria-disabled="true" title="Disponible bientôt">Booster (bientôt)</button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             ))}
           </div>
         )}

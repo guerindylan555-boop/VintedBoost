@@ -39,6 +39,7 @@ export default function MesAnnoncesPage() {
   const [query, setQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [actionItem, setActionItem] = useState<Item | null>(null);
 
   // Hydrate from localStorage first
   useEffect(() => {
@@ -157,7 +158,7 @@ export default function MesAnnoncesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-screen-md p-4">
+    <div className="mx-auto max-w-screen-md p-4 overflow-x-hidden">
       <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold uppercase tracking-widest">Mes annonces</h1>
@@ -202,7 +203,7 @@ export default function MesAnnoncesPage() {
         </div>
       </div>
 
-      <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm min-h-40">
+      <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm min-h-40 overflow-x-hidden">
         {loading ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -234,76 +235,90 @@ export default function MesAnnoncesPage() {
               <div
                 key={h.id}
                 onClick={() => openItem(h)}
-                className="relative flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                className="group relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-900/60 text-left hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
               >
-                <Image
-                  src={h.source}
-                  alt="source"
-                  width={64}
-                  height={64}
-                  className="shrink-0 rounded-md border object-contain dark:border-gray-700"
-                  unoptimized
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">
-                    {(() => {
-                      const desc = (h.description || null) as (null | { title?: string; descriptionText?: string });
-                      return h.title?.trim() || (desc?.title || "").toString() || new Date(h.createdAt).toLocaleString();
-                    })()}
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <span>{h.results.length} résultat(s)</span>
-                    {h.status === "draft" ? (
-                      <span className="rounded border border-amber-500/30 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-300">
-                        Brouillon
-                      </span>
-                    ) : null}
-                    {h.status === "final" ? (
-                      <span className="rounded border border-teal-500/30 bg-teal-50 px-1.5 py-0.5 text-[10px] text-teal-700 dark:border-teal-500/30 dark:bg-teal-900/20 dark:text-teal-300">
-                        Définitive
-                      </span>
-                    ) : null}
-                    {h.description ? (
-                      <span className="rounded border border-emerald-500/30 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:text-emerald-300">
-                        Description
-                      </span>
-                    ) : null}
-                  </div>
-                  {(() => { const d = (h.description || null) as (null | { descriptionText?: string }); return d?.descriptionText; })() ? (
-                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2 break-anywhere">
-                      {(((h.description || null) as null | { descriptionText?: string })?.descriptionText || "")}
-                    </div>
-                  ) : null}
+                <div className="relative w-full overflow-hidden border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
+                  <Image
+                    src={h.source}
+                    alt="source"
+                    width={800}
+                    height={600}
+                    className="w-full h-40 object-contain"
+                    unoptimized
+                  />
                 </div>
-                <div className="ml-2 self-start">
-                  <button
-                    type="button"
-                    aria-label="Actions"
-                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === h.id ? null : h.id); }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                      <path d="M12 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" />
-                    </svg>
-                  </button>
-                  {openMenuId === h.id ? (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute right-2 top-12 z-10 min-w-44 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg"
-                    >
-                      <button className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => { setOpenMenuId(null); openItem(h); }}>Voir</button>
-                      <button className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => { setOpenMenuId(null); openItem(h); }}>Éditer</button>
-                      <button className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={async () => { setOpenMenuId(null); await duplicateItem(h); }}>Dupliquer</button>
-                      <button className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={async () => { setOpenMenuId(null); await deleteItem(h.id); }}>Supprimer</button>
-                      <button className="block w-full px-3 py-2 text-left text-sm opacity-50 cursor-default" disabled aria-disabled="true" title="Disponible bientôt">Booster (bientôt)</button>
+                <div className="p-3 min-w-0">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">
+                        {(() => {
+                          const desc = (h.description || null) as (null | { title?: string; descriptionText?: string });
+                          return h.title?.trim() || (desc?.title || "").toString() || new Date(h.createdAt).toLocaleString();
+                        })()}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span className="truncate">{h.results.length} résultat(s)</span>
+                        {h.status === "draft" ? (
+                          <span className="rounded border border-amber-500/30 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-300">
+                            Brouillon
+                          </span>
+                        ) : null}
+                        {h.status === "final" ? (
+                          <span className="rounded border border-teal-500/30 bg-teal-50 px-1.5 py-0.5 text-[10px] text-teal-700 dark:border-teal-500/30 dark:bg-teal-900/20 dark:text-teal-300">
+                            Définitive
+                          </span>
+                        ) : null}
+                        {h.description ? (
+                          <span className="rounded border border-emerald-500/30 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:text-emerald-300">
+                            Description
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  ) : null}
+                    <div className="shrink-0">
+                      <button
+                        type="button"
+                        aria-label="Actions"
+                        onClick={(e) => { e.stopPropagation(); setActionItem(h); }}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                          <path d="M12 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
       </section>
+      {actionItem ? (
+        <div
+          className="fixed inset-0 z-20" 
+          onClick={() => setActionItem(null)}
+        >
+          <div className="absolute inset-0 bg-black/40" />
+          <div 
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 shadow-2xl"
+            style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-gray-300 dark:bg-gray-700" />
+            <div className="text-sm font-medium truncate" title={(() => { const d = (actionItem?.description||null) as (null|{ title?: string }); return (actionItem?.title || d?.title || actionItem?.id || "").toString(); })()}>
+              {(() => { const d = (actionItem?.description||null) as (null|{ title?: string }); return (actionItem?.title || d?.title || actionItem?.id || "").toString(); })()}
+            </div>
+            <div className="mt-2 grid">
+              <button className="px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md" onClick={() => { const it = actionItem; setActionItem(null); if (it) openItem(it); }}>Voir</button>
+              <button className="px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md" onClick={() => { const it = actionItem; setActionItem(null); if (it) openItem(it); }}>Éditer</button>
+              <button className="px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md" onClick={async () => { const it = actionItem; setActionItem(null); if (it) await duplicateItem(it); }}>Dupliquer</button>
+              <button className="px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md" onClick={async () => { const it = actionItem; setActionItem(null); if (it) await deleteItem(it.id); }}>Supprimer</button>
+              <button className="px-3 py-2 text-left text-sm opacity-50 cursor-default rounded-md" disabled aria-disabled="true" title="Disponible bientôt">Booster (bientôt)</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

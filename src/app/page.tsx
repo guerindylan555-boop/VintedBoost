@@ -78,6 +78,11 @@ export default function Home() {
   const POSES = ["face", "trois-quarts", "profil", "assis", "marche"] as const;
   const STYLES = ["professionnel", "amateur"] as const;
   const BACKGROUNDS = ["chambre", "salon", "studio", "extérieur"] as const;
+  const PROVIDERS = ["vertex", "openrouter"] as const;
+
+  const [imageProvider, setImageProvider] = useState<string>(
+    () => process.env.NEXT_PUBLIC_IMAGE_PROVIDER || "vertex",
+  );
 
   const canGenerate = useMemo(
     () => Boolean(imageDataUrl && !generating),
@@ -114,7 +119,7 @@ export default function Home() {
       const imgRes = await fetch("/api/generate-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageDataUrl, options, count: 1 }),
+        body: JSON.stringify({ imageDataUrl, options, count: 1, provider: imageProvider }),
       });
       const imgJson = await imgRes.json();
       if (!imgRes.ok) throw new Error(imgJson?.error || "Erreur images");
@@ -277,6 +282,10 @@ export default function Home() {
         setImageOptsEnabled(rawImgOptsEnabled === "true");
         setOptionsOpen(rawImgOptsEnabled === "true");
       }
+      const rawProvider = localStorage.getItem("vintedboost_image_provider");
+      if (rawProvider === "openrouter" || rawProvider === "vertex") {
+        setImageProvider(rawProvider);
+      }
       const rawProd = localStorage.getItem("vintedboost_product");
       if (rawProd) {
         try {
@@ -349,6 +358,12 @@ export default function Home() {
       localStorage.setItem("vintedboost_desc_enabled", String(descEnabled));
     } catch {}
   }, [descEnabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("vintedboost_image_provider", imageProvider);
+    } catch {}
+  }, [imageProvider]);
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white text-gray-900 dark:from-gray-950 dark:to-gray-900 dark:text-gray-100">
@@ -665,7 +680,27 @@ export default function Home() {
                 )}
               >
                 {/* Options avancées modifiables seulement si imageOptsEnabled */}
-                
+
+                <div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Fournisseur</div>
+                  <div className="flex flex-wrap gap-2">
+                    {PROVIDERS.map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setImageProvider(p)}
+                        className={cx(
+                          "rounded-md border px-2 py-1 text-xs uppercase",
+                          imageProvider === p
+                            ? "bg-brand-600 text-white border-brand-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                        )}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div>
                   <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Pose</div>
                   <div className="flex flex-wrap gap-2">

@@ -4,6 +4,7 @@ import {
   OpenRouterChatCompletionResponse,
   OpenRouterChatMessage,
 } from "@/lib/openrouter";
+import { vertexFetch } from "@/lib/vertex";
 import { MannequinOptions, buildInstruction } from "@/lib/prompt";
 import { normalizeImageDataUrl } from "@/lib/image";
 
@@ -17,11 +18,12 @@ function getImageModel() {
 }
 
 export async function POST(req: NextRequest) {
-  const { imageDataUrl, options, productReference, count } = (await req.json()) as {
+  const { imageDataUrl, options, productReference, count, provider } = (await req.json()) as {
     imageDataUrl: string; // Data URL (data:image/...;base64,...)
     options?: MannequinOptions;
     productReference?: string;
     count?: number; // default 1
+    provider?: string;
   };
 
   if (!imageDataUrl || typeof imageDataUrl !== "string") {
@@ -76,6 +78,12 @@ export async function POST(req: NextRequest) {
 
   const imagesOut: string[] = [];
   const instructionEchoes: string[] = [];
+  const providerUsed = (
+    provider ||
+    process.env.IMAGE_PROVIDER ||
+    process.env.NEXT_PUBLIC_IMAGE_PROVIDER ||
+    "vertex"
+  ).toLowerCase();
   try {
     for (let i = 0; i < n; i++) {
       const instruction = buildInstruction(
@@ -84,34 +92,39 @@ export async function POST(req: NextRequest) {
         i === 0 ? "pose principale" : i === 1 ? "léger mouvement" : "trois-quarts"
       );
       instructionEchoes.push(instruction);
-      const messages: OpenRouterChatMessage[] = [
-        {
-          role: "system",
-          content:
-            "Tu génères UNIQUEMENT une image correspondant aux instructions. Ne retourne pas de texte.",
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: instruction },
-            { type: "image_url", image_url: { url: safeImageDataUrl } },
-          ],
-        },
-      ];
-      const payload = {
-        model: getImageModel(),
-        messages,
-        modalities: ["image"],
-        // Some providers honor this to prefer non-text responses
-        max_output_tokens: 0,
-      };
+      if (providerUsed === "openrouter") {
+        const messages: OpenRouterChatMessage[] = [
+          {
+            role: "system",
+            content:
+              "Tu génères UNIQUEMENT une image correspondant aux instructions. Ne retourne pas de texte.",
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: instruction },
+              { type: "image_url", image_url: { url: safeImageDataUrl } },
+            ],
+          },
+        ];
+        const payload = {
+          model: getImageModel(),
+          messages,
+          modalities: ["image"],
+          // Some providers honor this to prefer non-text responses
+          max_output_tokens: 0,
+        };
 
-      const data = await openrouterFetch<OpenRouterChatCompletionResponse>(
-        payload,
-        { cache: "no-store" }
-      );
-      const urls = extractImageUrls(data);
-      if (urls[0]) imagesOut.push(urls[0]);
+        const data = await openrouterFetch<OpenRouterChatCompletionResponse>(
+          payload,
+          { cache: "no-store" }
+        );
+        const urls = extractImageUrls(data);
+        if (urls[0]) imagesOut.push(urls[0]);
+      } else {
+        const urls = await vertexFetch(instruction, safeImageDataUrl);
+        if (urls[0]) imagesOut.push(urls[0]);
+      }
     }
 
     if (imagesOut.length === 0) {

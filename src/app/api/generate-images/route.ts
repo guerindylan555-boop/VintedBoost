@@ -86,8 +86,8 @@ export async function POST(req: NextRequest) {
     const parts = (
       resp as { candidates?: Array<{ content?: { parts?: unknown[] } }> }
     )?.candidates?.[0]?.content?.parts || [];
-    for (const p of parts) {
-      const d = p?.inline_data;
+    for (const p of parts as Array<{ inline_data?: { data?: string; mime_type?: string } }>) {
+      const d = p.inline_data;
       if (d?.data && d?.mime_type) {
         urls.push(`data:${d.mime_type};base64,${d.data}`);
       }

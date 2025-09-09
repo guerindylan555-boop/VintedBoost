@@ -78,7 +78,12 @@ export async function POST(req: NextRequest) {
 
   const imagesOut: string[] = [];
   const instructionEchoes: string[] = [];
-  const providerUsed = (provider || process.env.IMAGE_PROVIDER || "vertex").toLowerCase();
+  const providerUsed = (
+    provider ||
+    process.env.IMAGE_PROVIDER ||
+    process.env.NEXT_PUBLIC_IMAGE_PROVIDER ||
+    "vertex"
+  ).toLowerCase();
   try {
     for (let i = 0; i < n; i++) {
       const instruction = buildInstruction(

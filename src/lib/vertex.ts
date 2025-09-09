@@ -10,8 +10,8 @@ export async function vertexFetch(
       "Missing VERTEX_PROJECT_ID, VERTEX_LOCATION or VERTEX_API_KEY. Add them to .env.local (see .env.example).",
     );
   }
-  const model = process.env.VERTEX_IMAGE_MODEL || "gemini-2.5-flash-image-preview";
-  const endpoint = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent?key=${apiKey}`;
+    const model = process.env.VERTEX_IMAGE_MODEL || "gemini-2.5-flash-image-preview";
+    const endpoint = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const match = imageDataUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
   if (!match) {

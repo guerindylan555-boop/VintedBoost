@@ -80,7 +80,9 @@ export default function Home() {
   const BACKGROUNDS = ["chambre", "salon", "studio", "extérieur"] as const;
   const PROVIDERS = ["vertex", "openrouter"] as const;
 
-  const [imageProvider, setImageProvider] = useState<string>("vertex");
+  const [imageProvider, setImageProvider] = useState<string>(
+    () => process.env.NEXT_PUBLIC_IMAGE_PROVIDER || "vertex",
+  );
 
   const canGenerate = useMemo(
     () => Boolean(imageDataUrl && !generating),

@@ -36,7 +36,7 @@ export default function Home() {
   const [product, setProduct] = useState<{ brand: string; model: string; condition?: string }>(
     { brand: "", model: "", condition: "" }
   );
-  const [productEnabled, setProductEnabled] = useState(false);
+  // productEnabled fusionné avec descEnabled (un seul toggle)
 
   const [options, setOptions] = useState<MannequinOptions>({
     gender: "femme",
@@ -85,7 +85,9 @@ export default function Home() {
 
   async function generate() {
     if (!imageDataUrl) return;
-    setOptionsOpen(false); // collapse options on generate
+    // En cliquant sur Générer: replier l'édition et ouvrir la zone résultat
+    setEditCollapsed(true);
+    setOptionsOpen(false);
     setGenerating(true);
     setError(null);
     setOutImages([]);
@@ -132,15 +134,8 @@ export default function Home() {
 
   function onToggleDesc(next: boolean) {
     setDescEnabled(next);
-    if (next) {
-      // Rétracter l'édition et faire apparaître le résultat
-      setEditCollapsed(true);
-      try {
-        resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      } catch {}
-    } else {
-      setEditCollapsed(false);
-    }
+    // A l'activation, simplement déplier les options; pas de scroll, pas de rétraction globale
+    if (next) setOptionsOpen(true);
   }
 
   async function generateDescriptionFromPhoto() {
@@ -157,7 +152,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           imageDataUrl,
-          product: productEnabled
+          product: descEnabled
             ? {
                 brand: product.brand?.trim() || null,
                 model: product.model?.trim() || null,
@@ -206,15 +201,12 @@ export default function Home() {
           setProduct((prev) => ({ ...prev, ...p }));
         } catch {}
       }
-      const rawProdEnabled = localStorage.getItem("vintedboost_product_enabled");
-      if (rawProdEnabled != null) {
-        setProductEnabled(rawProdEnabled === "true");
-      }
       const rawDescEnabled = localStorage.getItem("vintedboost_desc_enabled");
       if (rawDescEnabled != null) {
         const enabled = rawDescEnabled === "true";
         setDescEnabled(enabled);
-        setEditCollapsed(enabled);
+        // Ouvrir les options si la description est activée
+        if (enabled) setOptionsOpen(true);
       }
     } catch {}
     // Attempt to hydrate from server history as source of truth when available
@@ -247,11 +239,7 @@ export default function Home() {
     } catch {}
   }, [product]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("vintedboost_product_enabled", String(productEnabled));
-    } catch {}
-  }, [productEnabled]);
+  // plus de persistance séparée pour productEnabled (fusion avec descEnabled)
 
   useEffect(() => {
     try {
@@ -426,11 +414,11 @@ export default function Home() {
               </div>
               
               <div className="mt-2">
-              <button
-                type="button"
-                aria-expanded={optionsOpen}
-                aria-controls="options-content"
-                onClick={() => setOptionsOpen((v) => !v)}
+                <button
+                  type="button"
+                  aria-expanded={optionsOpen}
+                  aria-controls="options-content"
+                  onClick={() => setOptionsOpen((v) => !v)}
                 className="mb-2 flex w-full items-center justify-between rounded-md px-2 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300">
@@ -459,7 +447,7 @@ export default function Home() {
                   optionsOpen ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"
                 )}
               >
-                {!productEnabled && (
+                {!descEnabled && (
                   <>
                     <div>
                       <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Genre</div>
@@ -563,16 +551,10 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Infos vêtement (optionnel) */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Infos vêtement</div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-300">Activer</span>
-                      <Toggle checked={productEnabled} onChange={setProductEnabled} ariaLabel="Activer les infos vêtement" />
-                    </div>
-                  </div>
-                  {productEnabled && (
+                {/* Infos vêtement (optionnel, affiché si toggle description actif) */}
+                {descEnabled && (
+                  <div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-2">Infos vêtement</div>
                     <div className="grid grid-cols-1 gap-3">
                       <div>
                         <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300" htmlFor="brand">Marque</label>
@@ -616,8 +598,8 @@ export default function Home() {
                         />
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <div>
                   <div className="flex items-center justify-between">

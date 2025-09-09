@@ -4,10 +4,15 @@ import {
   OpenRouterChatCompletionResponse,
   OpenRouterChatMessage,
 } from "@/lib/openrouter";
+import { googleAiFetch } from "@/lib/google-ai";
 import { MannequinOptions, buildInstruction } from "@/lib/prompt";
 import { normalizeImageDataUrl } from "@/lib/image";
 
 export const runtime = "nodejs";
+
+function getImageProvider() {
+  return (process.env.IMAGE_PROVIDER || "google").toLowerCase();
+}
 
 function getImageModel() {
   return (
@@ -41,7 +46,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  function extractImageUrls(resp: OpenRouterChatCompletionResponse): string[] {
+  function extractOpenRouterImageUrls(
+    resp: OpenRouterChatCompletionResponse
+  ): string[] {
     type ImagesPart = { image_url?: { url?: string } };
     type ChoiceMessage = { images?: ImagesPart[]; content?: unknown };
     type ChoiceDelta = { images?: ImagesPart[] };
@@ -74,8 +81,49 @@ export async function POST(req: NextRequest) {
     return Array.from(new Set(urls));
   }
 
+  function extractGoogleImageUrls(resp: unknown): string[] {
+    const urls: string[] = [];
+    const parts = (
+      resp as { candidates?: Array<{ content?: { parts?: unknown[] } }> }
+    )?.candidates?.[0]?.content?.parts || [];
+    type Part = {
+      inline_data?: { data?: string; mime_type?: string };
+      inlineData?: { data?: string; mimeType?: string };
+    };
+    for (const p of parts as Part[]) {
+      const d =
+        (p.inline_data ?? p.inlineData) as {
+          data?: string;
+          mime_type?: string;
+          mimeType?: string;
+        };
+      const mime = d.mime_type || d.mimeType;
+      if (d.data && mime) {
+        urls.push(`data:${mime};base64,${d.data}`);
+      }
+    }
+    return Array.from(new Set(urls));
+  }
+
+  const match = safeImageDataUrl.match(
+    /^data:(image\/[a-zA-Z+.-]+);base64,([A-Za-z0-9+/=]+)$/
+  );
+  if (!match) {
+    return NextResponse.json(
+      { error: "Invalid image data" },
+      { status: 400 }
+    );
+  }
+  const mimeType = match[1];
+  const base64Data = match[2];
+
   const imagesOut: string[] = [];
   const instructionEchoes: string[] = [];
+  const providerHeader = req.headers.get("x-image-provider");
+  const provider =
+    providerHeader === "openrouter" || providerHeader === "google"
+      ? providerHeader
+      : getImageProvider();
   try {
     for (let i = 0; i < n; i++) {
       const instruction = buildInstruction(
@@ -84,34 +132,44 @@ export async function POST(req: NextRequest) {
         i === 0 ? "pose principale" : i === 1 ? "léger mouvement" : "trois-quarts"
       );
       instructionEchoes.push(instruction);
-      const messages: OpenRouterChatMessage[] = [
-        {
-          role: "system",
-          content:
-            "Tu génères UNIQUEMENT une image correspondant aux instructions. Ne retourne pas de texte.",
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: instruction },
-            { type: "image_url", image_url: { url: safeImageDataUrl } },
-          ],
-        },
-      ];
-      const payload = {
-        model: getImageModel(),
-        messages,
-        modalities: ["image"],
-        // Some providers honor this to prefer non-text responses
-        max_output_tokens: 0,
-      };
-
-      const data = await openrouterFetch<OpenRouterChatCompletionResponse>(
-        payload,
-        { cache: "no-store" }
-      );
-      const urls = extractImageUrls(data);
-      if (urls[0]) imagesOut.push(urls[0]);
+      if (provider === "openrouter") {
+        const messages: OpenRouterChatMessage[] = [
+          {
+            role: "system",
+            content:
+              "Tu génères UNIQUEMENT une image correspondant aux instructions. Ne retourne pas de texte.",
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: instruction },
+              { type: "image_url", image_url: { url: safeImageDataUrl } },
+            ],
+          },
+        ];
+        const payload = {
+          model: getImageModel(),
+          messages,
+          modalities: ["image"],
+          // Some providers honor this to prefer non-text responses
+          max_output_tokens: 0,
+        };
+        const data = await openrouterFetch<OpenRouterChatCompletionResponse>(
+          payload,
+          { cache: "no-store" }
+        );
+        const urls = extractOpenRouterImageUrls(data);
+        if (urls[0]) imagesOut.push(urls[0]);
+      } else {
+        const parts = [
+          { text: instruction },
+          { inlineData: { mimeType, data: base64Data } },
+        ];
+        const payload = { contents: [{ role: "user", parts }] };
+        const data = await googleAiFetch(payload, { cache: "no-store" });
+        const urls = extractGoogleImageUrls(data);
+        if (urls[0]) imagesOut.push(urls[0]);
+      }
     }
 
     if (imagesOut.length === 0) {
@@ -120,7 +178,9 @@ export async function POST(req: NextRequest) {
         { status: 502 }
       );
     }
-    const payload: { images: string[]; instructions?: string[] } = { images: imagesOut };
+    const payload: { images: string[]; instructions?: string[] } = {
+      images: imagesOut,
+    };
     // Help debugging locally by returning the exact instructions
     try {
       if (process.env.NODE_ENV !== "production") {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
 type ThemeMode = "system" | "light" | "dark";
+type ImageProvider = "google" | "openrouter";
 
 function applyTheme(mode: ThemeMode) {
   try {
@@ -30,6 +31,9 @@ export default function SettingsPage() {
   const [mode, setMode] = useState<ThemeMode>("system");
   const [savingTheme, setSavingTheme] = useState(false);
 
+  const [provider, setProvider] = useState<ImageProvider>("google");
+  const [savingProvider, setSavingProvider] = useState(false);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
@@ -53,6 +57,13 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem("imageProvider") as ImageProvider | null;
+      if (stored === "google" || stored === "openrouter") setProvider(stored);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     setName(user?.name || "");
     setEmail(user?.email || "");
   }, [user?.name, user?.email]);
@@ -64,6 +75,18 @@ export default function SettingsPage() {
       applyTheme(next);
     } finally {
       setSavingTheme(false);
+    }
+  }
+
+  async function saveProvider(next: ImageProvider) {
+    setSavingProvider(true);
+    try {
+      setProvider(next);
+      try {
+        localStorage.setItem("imageProvider", next);
+      } catch {}
+    } finally {
+      setSavingProvider(false);
     }
   }
 
@@ -140,6 +163,32 @@ export default function SettingsPage() {
                 disabled={savingTheme}
               />
               {m === "system" ? "Système" : m === "light" ? "Clair" : "Sombre"}
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
+        <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Génération d&apos;images</h2>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(["google", "openrouter"] as ImageProvider[]).map((p) => (
+            <label
+              key={p}
+              className={`flex items-center gap-2 rounded-md border p-2 text-sm cursor-pointer ${
+                provider === p
+                  ? "border-brand-600 bg-brand-50/60 dark:bg-brand-900/10"
+                  : "border-gray-200 dark:border-gray-700"
+              }`}
+            >
+              <input
+                type="radio"
+                name="image-provider"
+                value={p}
+                checked={provider === p}
+                onChange={() => saveProvider(p)}
+                disabled={savingProvider}
+              />
+              {p === "google" ? "Google AI" : "OpenRouter"}
             </label>
           ))}
         </div>

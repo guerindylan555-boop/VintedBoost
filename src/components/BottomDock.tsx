@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function BottomDock() {
   return (
     <nav
@@ -7,8 +9,8 @@ export default function BottomDock() {
     >
       <div className="mx-auto max-w-screen-md px-4">
         <div className="grid grid-cols-3 gap-2 py-2">
-          <button
-            type="button"
+          <Link
+            href="/annonces"
             className="flex flex-col items-center justify-center gap-1 rounded-md py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
             aria-label="Mes annonces"
           >
@@ -26,10 +28,10 @@ export default function BottomDock() {
               <path d="M5 6h.01M5 12h.01M5 18h.01" />
             </svg>
             <span className="text-[10px] font-medium uppercase tracking-wider">Mes annonces</span>
-          </button>
+          </Link>
 
-          <button
-            type="button"
+          <Link
+            href="/"
             className="flex flex-col items-center justify-center gap-1 rounded-md py-2 bg-brand-600 text-white hover:bg-brand-700 shadow-sm"
             aria-label="Créer une annonce"
           >
@@ -47,7 +49,7 @@ export default function BottomDock() {
               <path d="M12 8v8M8 12h8" />
             </svg>
             <span className="text-[10px] font-semibold uppercase tracking-wider">Créer</span>
-          </button>
+          </Link>
 
           <button
             type="button"
@@ -74,4 +76,3 @@ export default function BottomDock() {
     </nav>
   );
 }
-

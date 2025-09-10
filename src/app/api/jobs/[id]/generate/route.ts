@@ -33,8 +33,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     poses: string[] | null;
     main_image: string;
     env_image: string | null;
+    debug: any | null;
   }>(
-    `SELECT session_id, requested_mode, final_mode, options, product, poses, main_image, env_image
+    `SELECT session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, debug
      FROM generation_jobs WHERE id = $1 LIMIT 1`,
     [id]
   );
@@ -175,15 +176,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
 
   // Persist results
+  const updatedDebug = { ...(job as any)?.debug || {}, mode: finalMode === "two" ? "two-images" : "one-image", instructions: instructionEchoes };
   await query(
     `UPDATE generation_jobs SET status = 'done', results = $2::jsonb, debug = $3::jsonb WHERE id = $1`,
     [
       id,
       JSON.stringify({ images, poses, errorsByIndex }),
-      JSON.stringify({ mode: finalMode === "two" ? "two-images" : "one-image", instructions: instructionEchoes })
+      JSON.stringify(updatedDebug)
     ]
   );
 
-  const out: any = { images, poses, instructions: instructionEchoes, debug: { mode: finalMode === "two" ? "two-images" : "one-image" } };
+  const out: any = { images, poses, instructions: instructionEchoes, debug: updatedDebug };
   return NextResponse.json(out, { status: 200 });
 }

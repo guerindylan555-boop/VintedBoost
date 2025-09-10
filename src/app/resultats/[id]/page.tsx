@@ -179,18 +179,16 @@ export default function ResultatsPage() {
     }
   }
 
-  // Legacy page no longer used: redirect to job results if present
-  useEffect(() => {
+  // If we have a jobId for this legacy item, also show a link to the new results page
+  const linkedJobId = useMemo(() => {
     try {
       const theId = decodeURIComponent(String(id || ""));
       const raw = sessionStorage.getItem(`vintedboost_tmp_${theId}`);
-      if (raw) {
-        const obj = JSON.parse(raw || '{}') as { id?: string };
-        const jobId = (obj as any)?.jobId as string | undefined;
-        if (jobId) router.replace(`/resultats/job/${encodeURIComponent(String(jobId))}`);
-      }
-    } catch {}
-  }, [id, router]);
+      if (!raw) return null;
+      const obj = JSON.parse(raw || '{}') as { jobId?: string };
+      return (obj as any)?.jobId || null;
+    } catch { return null; }
+  }, [id]);
 
   async function runGeneration() {
     if (!item) return;
@@ -572,6 +570,11 @@ export default function ResultatsPage() {
           />
         ) : (
           <>
+            {linkedJobId ? (
+              <div className="mb-2 text-xs text-gray-600 dark:text-gray-300">
+                Nouvelle version disponible: <button className="text-brand-700 hover:underline" onClick={()=>router.push(`/resultats/job/${encodeURIComponent(String(linkedJobId))}`)}>voir la page Job</button>
+              </div>
+            ) : null}
             {showDebug && debugData ? (
               <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/60 p-3">
                 <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Entrées envoyées à Gemini</div>

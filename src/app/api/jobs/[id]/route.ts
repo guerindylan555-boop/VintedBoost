@@ -13,8 +13,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const { rows } = await query<any>(
     `SELECT id, created_at as "createdAt", requested_mode as "requestedMode", final_mode as "finalMode", options, product, poses,
             main_image as "main_image", env_image as "env_image", status, results, debug
-     FROM generation_jobs WHERE id = $1 LIMIT 1`,
-    [id]
+     FROM generation_jobs WHERE id = $1 AND session_id = $2 LIMIT 1`,
+    [id, session.user.id]
   );
   const job = rows?.[0] || null;
   if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });

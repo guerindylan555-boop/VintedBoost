@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { getSessionId, setSessionCookie } from "@/lib/session";
-import { randomUUID } from "crypto";
+import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -21,21 +20,12 @@ async function ensureTable() {
   );
 }
 
-export async function GET(
-  _req: Request,
-  context: unknown
-) {
+export async function GET(_req: Request, context: unknown) {
+  const session = await auth.api.getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const params = (context as { params?: Record<string, string> })?.params || {};
   const id = params.id;
-  if (!id) {
-    return NextResponse.json({ error: "Missing id" }, { status: 400 });
-  }
-  let sessionId = await getSessionId();
-  let newSessionId: string | null = null;
-  if (!sessionId) {
-    sessionId = randomUUID();
-    newSessionId = sessionId;
-  }
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
   await ensureTable();
   const { rows } = await query<{
     id: string;
@@ -48,24 +38,22 @@ export async function GET(
      FROM history_items
      WHERE id = $1 AND session_id = $2
      LIMIT 1`,
-    [id, sessionId]
+    [id, session.user.id]
   );
-  if (rows.length === 0) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  if (rows.length === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const r = rows[0];
-  const res = NextResponse.json({
+  return NextResponse.json({
     id: r.id,
     createdAt: r.created_at,
     source: r.source_image,
     results: Array.isArray(r.results) ? (r.results as string[]) : [],
     description: r.description ?? null,
   });
-  if (newSessionId) setSessionCookie(res, newSessionId);
-  return res;
 }
 
 export async function PATCH(req: Request, context: unknown) {
+  const session = await auth.api.getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const params = (context as { params?: Record<string, string> })?.params || {};
   const id = params.id;
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
@@ -75,47 +63,31 @@ export async function PATCH(req: Request, context: unknown) {
     results?: string[];
     source?: string;
   } | null;
-  if (!body || !("description" in body)) {
-    return NextResponse.json({ error: "Missing 'description' in body" }, { status: 400 });
-  }
-
-  const sessionId = await getSessionId();
-  if (!sessionId) {
-    // Without session, we cannot update an item; return 401
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!body || !("description" in body)) return NextResponse.json({ error: "Missing 'description' in body" }, { status: 400 });
 
   await ensureTable();
   const result = await query(
     `UPDATE history_items
      SET description = $1::jsonb
      WHERE id = $2 AND session_id = $3`,
-    [body.description == null ? null : JSON.stringify(body.description), id, sessionId]
+    [body.description == null ? null : JSON.stringify(body.description), id, session.user.id]
   );
-  if ((result as unknown as { rowCount?: number }).rowCount === 0) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  if ((result as unknown as { rowCount?: number }).rowCount === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(_req: Request, context: unknown) {
+  const session = await auth.api.getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const params = (context as { params?: Record<string, string> })?.params || {};
   const id = params.id;
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-
-  const sessionId = await getSessionId();
-  if (!sessionId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   await ensureTable();
   const result = await query(
     `DELETE FROM history_items
      WHERE id = $1 AND session_id = $2`,
-    [id, sessionId]
+    [id, session.user.id]
   );
-  if ((result as unknown as { rowCount?: number }).rowCount === 0) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  if ((result as unknown as { rowCount?: number }).rowCount === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

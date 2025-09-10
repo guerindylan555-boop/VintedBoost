@@ -37,7 +37,10 @@ async function coerceToDataUrl(input: string): Promise<string> {
     str = str.replace(";base66,", ";base64,");
   }
   if (isHttpUrl(str)) {
-    const resp = await fetch(str);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const resp = await fetch(str, { signal: controller.signal });
+    clearTimeout(timeout);
     if (!resp.ok) throw new Error("Failed to fetch image");
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     const buf = Buffer.from(await resp.arrayBuffer());

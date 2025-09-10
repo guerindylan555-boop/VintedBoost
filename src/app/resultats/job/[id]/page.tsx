@@ -25,6 +25,8 @@ export default function JobResultPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(String((data as any)?.error || "Not found"));
         setJob(data);
+        // if job already done but no client redirect happened, ensure images show
+        if (data?.status === 'done') setProgress(100);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -35,6 +37,7 @@ export default function JobResultPage() {
 
   const debug = useMemo(() => {
     if (!job) return null;
+    // Prefer server-side debug
     return job?.debug || null;
   }, [job]);
 

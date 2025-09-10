@@ -180,11 +180,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     [
       id,
       JSON.stringify({ images, poses, errorsByIndex }),
-      JSON.stringify({ mode: finalMode === "two" ? "two-images" : "one-image" })
+      JSON.stringify({ mode: finalMode === "two" ? "two-images" : "one-image", instructions: instructionEchoes })
     ]
   );
 
-  const out: any = { images, poses };
-  try { if (process.env.NODE_ENV !== 'production') { out.instructions = instructionEchoes; out.debug = { mode: finalMode === "two" ? "two-images" : "one-image" }; } } catch {}
+  const out: any = { images, poses, instructions: instructionEchoes, debug: { mode: finalMode === "two" ? "two-images" : "one-image" } };
   return NextResponse.json(out, { status: 200 });
 }

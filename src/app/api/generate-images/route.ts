@@ -5,7 +5,7 @@ import {
   OpenRouterChatMessage,
 } from "@/lib/openrouter";
 import { googleAiFetch } from "@/lib/google-ai";
-import { MannequinOptions, buildInstruction, buildInstructionForPose, type Pose } from "@/lib/prompt";
+import { MannequinOptions, buildInstruction, buildInstructionForPose, buildInstructionForPoseWithProvidedBackground, type Pose } from "@/lib/prompt";
 import { normalizeImageDataUrl } from "@/lib/image";
 
 export const runtime = "nodejs";
@@ -26,8 +26,9 @@ function getImageModel() {
 }
 
 export async function POST(req: NextRequest) {
-  const { imageDataUrl, options, productReference, count, poses } = (await req.json()) as {
+  const { imageDataUrl, environmentImageDataUrl, options, productReference, count, poses } = (await req.json()) as {
     imageDataUrl: string; // Data URL (data:image/...;base64,...)
+    environmentImageDataUrl?: string | null; // Optional environment image Data URL
     options?: MannequinOptions;
     productReference?: string;
     count?: number; // default 1 (legacy)
@@ -52,8 +53,12 @@ export async function POST(req: NextRequest) {
 
   // Normalize input image (handle HEIC/unknown → JPEG, max 2048px)
   let safeImageDataUrl = imageDataUrl;
+  let safeEnvImageDataUrl: string | null = null;
   try {
     safeImageDataUrl = await normalizeImageDataUrl(imageDataUrl);
+    if (environmentImageDataUrl && typeof environmentImageDataUrl === "string") {
+      safeEnvImageDataUrl = await normalizeImageDataUrl(environmentImageDataUrl);
+    }
   } catch {
     return NextResponse.json(
       { error: "The image data provided is invalid or unsupported." },
@@ -140,6 +145,16 @@ export async function POST(req: NextRequest) {
   }
   const mimeType = match[1];
   const base64Data = match[2];
+  let envMimeType: string | null = null;
+  let envBase64Data: string | null = null;
+  if (safeEnvImageDataUrl) {
+    const m2 = safeEnvImageDataUrl.match(/^data:(image\/[a-zA-Z+.-]+);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m2) {
+      return NextResponse.json({ error: "Invalid environment image data" }, { status: 400 });
+    }
+    envMimeType = m2[1];
+    envBase64Data = m2[2];
+  }
 
   const instructionEchoes: string[] = [];
   const providerHeader = req.headers.get("x-image-provider");
@@ -151,7 +166,9 @@ export async function POST(req: NextRequest) {
     // Run per-pose generations in parallel
     const tasks = requestedPoses.map((pose, idx) => {
       const variantLabel = pose;
-      const instruction = buildInstructionForPose(options || {}, pose, productReference, variantLabel);
+      const instruction = safeEnvImageDataUrl
+        ? buildInstructionForPoseWithProvidedBackground(options || {}, pose, productReference, variantLabel)
+        : buildInstructionForPose(options || {}, pose, productReference, variantLabel);
       instructionEchoes[idx] = instruction;
       if (provider === "openrouter") {
         const messages: OpenRouterChatMessage[] = [
@@ -162,10 +179,18 @@ export async function POST(req: NextRequest) {
           },
           {
             role: "user",
-            content: [
-              { type: "text", text: instruction },
-              { type: "image_url", image_url: { url: safeImageDataUrl } },
-            ],
+            content: (
+              () => {
+                const parts: any[] = [
+                  { type: "text", text: instruction },
+                  { type: "image_url", image_url: { url: safeImageDataUrl } },
+                ];
+                if (safeEnvImageDataUrl) {
+                  parts.push({ type: "image_url", image_url: { url: safeEnvImageDataUrl } });
+                }
+                return parts;
+              }
+            )(),
           },
         ];
         const payload = {
@@ -186,6 +211,7 @@ export async function POST(req: NextRequest) {
         const parts = [
           { text: instruction },
           { inline_data: { mime_type: mimeType, data: base64Data } },
+          ...(safeEnvImageDataUrl && envMimeType && envBase64Data ? [{ inline_data: { mime_type: envMimeType, data: envBase64Data } }] : []),
         ];
         const payload = {
           contents: [{ role: "user", parts }],

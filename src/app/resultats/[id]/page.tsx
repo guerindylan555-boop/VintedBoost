@@ -20,6 +20,7 @@ type Item = {
     options: MannequinOptions;
     product: { brand: string; model: string; condition?: string };
     descEnabled: boolean;
+    env?: { useDefault: boolean; kind: "chambre" | "salon"; image?: string };
   };
   title?: string;
 };
@@ -134,7 +135,12 @@ export default function ResultatsPage() {
       const imagesReq = fetch("/api/generate-images", {
         method: "POST",
         headers: sharedHeaders,
-        body: JSON.stringify({ imageDataUrl: item.source, options: item.meta?.options, poses: item.meta?.options?.poses }),
+        body: JSON.stringify({
+          imageDataUrl: item.source,
+          environmentImageDataUrl: item.meta?.env?.useDefault ? (item.meta?.env?.image || null) : null,
+          options: item.meta?.options,
+          poses: item.meta?.options?.poses,
+        }),
       })
         .then(async (res) => {
           const json = await res.json();

@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Toggle from "@/components/Toggle";
-import { buildInstruction, type MannequinOptions, type Pose } from "@/lib/prompt";
+import { buildInstruction, buildInstructionForPoseWithProvidedBackground, type MannequinOptions, type Pose } from "@/lib/prompt";
 
 function cx(...xs: Array<string | false | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -57,6 +58,7 @@ type HistItem = {
     options: MannequinOptions;
     product: { brand: string; model: string; condition?: string };
     descEnabled: boolean;
+    env?: { useDefault: boolean; kind: "chambre" | "salon"; image?: string };
   };
   title?: string;
 };
@@ -92,6 +94,11 @@ export default function CreatePage() {
   const [descEnabled, setDescEnabled] = useState(false);
   const [editCollapsed, setEditCollapsed] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
+  // Environnement par défaut (utilisé pour l'arrière-plan)
+  const [useDefaultEnv, setUseDefaultEnv] = useState(false);
+  const [envKind, setEnvKind] = useState<"chambre" | "salon">("chambre");
+  const [defaultChambre, setDefaultChambre] = useState<{ id: string; image: string } | null>(null);
+  const [defaultSalon, setDefaultSalon] = useState<{ id: string; image: string } | null>(null);
 
   // description/result generation is deferred to /resultats/[id]
 
@@ -111,8 +118,11 @@ export default function CreatePage() {
     const selected = (options.poses && options.poses.length > 0)
       ? options.poses[0]
       : (options.pose as Pose | undefined) || "face";
+    if (useDefaultEnv) {
+      return buildInstructionForPoseWithProvidedBackground({ ...options, pose: selected }, selected, undefined, "aperçu");
+    }
     return buildInstruction({ ...options, pose: selected }, undefined, "aperçu");
-  }, [options]);
+  }, [options, useDefaultEnv]);
 
   // Helpers: local history upsert + last
   function upsertLocalHistory(partial: HistItem) {
@@ -179,6 +189,10 @@ export default function CreatePage() {
 
   function generate() {
     if (!imageDataUrl) return;
+    if (useDefaultEnv) {
+      const env = envKind === "salon" ? defaultSalon : defaultChambre;
+      if (!env) { setError("Définissez d'abord un environnement par défaut"); return; }
+    }
     setGenerating(true);
     setError(null);
     setEditCollapsed(true);
@@ -197,6 +211,7 @@ export default function CreatePage() {
         options,
         product,
         descEnabled,
+        env: useDefaultEnv ? { useDefault: true, kind: envKind, image: (envKind === "salon" ? defaultSalon : defaultChambre)?.image } : undefined,
       },
       title: title?.trim() || undefined,
     };
@@ -247,6 +262,10 @@ export default function CreatePage() {
         setDescEnabled(enabled);
         if (enabled) setOptionsOpen(true);
       }
+      const rawUseDefault = localStorage.getItem("vintedboost_use_default_env");
+      if (rawUseDefault != null) setUseDefaultEnv(rawUseDefault === "true");
+      const rawEnvKind = localStorage.getItem("vintedboost_env_kind");
+      if (rawEnvKind === "salon" || rawEnvKind === "chambre") setEnvKind(rawEnvKind);
     } catch {}
   }, []);
 
@@ -262,6 +281,28 @@ export default function CreatePage() {
   useEffect(() => {
     try { localStorage.setItem("vintedboost_desc_enabled", String(descEnabled)); } catch {}
   }, [descEnabled]);
+  useEffect(() => {
+    try { localStorage.setItem("vintedboost_use_default_env", String(useDefaultEnv)); } catch {}
+  }, [useDefaultEnv]);
+  useEffect(() => {
+    try { localStorage.setItem("vintedboost_env_kind", envKind); } catch {}
+  }, [envKind]);
+
+  // Récupérer l'environnement par défaut
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/environments", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { items?: Array<{ id: string; kind: string; image: string; isDefault?: boolean }> };
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const defC = items.find((x) => (x.kind?.toLowerCase?.() === "chambre" || x.kind?.toLowerCase?.() === "bedroom") && x.isDefault);
+        const defS = items.find((x) => x.kind?.toLowerCase?.() === "salon" && x.isDefault);
+        if (defC) setDefaultChambre({ id: defC.id, image: defC.image });
+        if (defS) setDefaultSalon({ id: defS.id, image: defS.image });
+      } catch {}
+    })();
+  }, []);
 
   // Save actions
   function saveDraft() {
@@ -515,12 +556,47 @@ export default function CreatePage() {
                       </div>
                     </div>
                     <div>
-                      <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Environnement / Fond</div>
-                      <div className="flex flex-wrap gap-2">
-                        {BACKGROUNDS.map((b) => (
-                          <button key={b} onClick={() => setOptions((o) => ({ ...o, background: b }))} className={cx("rounded-md border px-2 py-1 text-xs uppercase", options.background === b ? "bg-brand-600 text-white border-brand-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800")}>{b}</button>
-                        ))}
+                      <div className="mb-1 flex items-center justify-between">
+                        <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Environnement / Fond</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-500">Utiliser mon défaut</span>
+                          <Toggle checked={useDefaultEnv} onChange={setUseDefaultEnv} ariaLabel="Utiliser l'environnement par défaut" />
+                        </div>
                       </div>
+                      {!useDefaultEnv ? (
+                        <div className="flex flex-wrap gap-2">
+                          {BACKGROUNDS.map((b) => (
+                            <button key={b} onClick={() => setOptions((o) => ({ ...o, background: b }))} className={cx("rounded-md border px-2 py-1 text-xs uppercase", options.background === b ? "bg-brand-600 text-white border-brand-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800")}>{b}</button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid gap-2">
+                          <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1 bg-white dark:bg-gray-900 w-max">
+                            {(["chambre", "salon"] as const).map((k) => (
+                              <button key={k} onClick={() => setEnvKind(k)} className={cx("px-3 py-1.5 text-xs rounded-md", envKind === k ? "bg-brand-600 text-white" : "text-gray-700 dark:text-gray-200")}>
+                                {k}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {envKind === "chambre" && defaultChambre ? (
+                              <div className="relative h-14 w-20 overflow-hidden rounded-md border border-gray-200 dark:border-gray-700">
+                                <Image src={defaultChambre.image} alt="env défaut chambre" fill sizes="80px" className="object-cover" unoptimized />
+                              </div>
+                            ) : null}
+                            {envKind === "salon" && defaultSalon ? (
+                              <div className="relative h-14 w-20 overflow-hidden rounded-md border border-gray-200 dark:border-gray-700">
+                                <Image src={defaultSalon.image} alt="env défaut salon" fill sizes="80px" className="object-cover" unoptimized />
+                              </div>
+                            ) : null}
+                            {((envKind === "chambre" && !defaultChambre) || (envKind === "salon" && !defaultSalon)) ? (
+                              <div className="text-xs text-gray-500">
+                                Aucun environnement par défaut. <Link href="/environnement" className="text-brand-700 hover:underline">Gérer</Link>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="flex items-center justify-between">

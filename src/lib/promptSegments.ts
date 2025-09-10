@@ -169,3 +169,35 @@ export function composePromptSegments(
     .join(" ")
     .trim();
 }
+
+// When an environment image is provided, omit background description
+export function segmentProvidedBackground(): string {
+  return (
+    "Utilise l'image d’arrière‑plan fournie telle quelle; " +
+    "intègre la personne portant le vêtement au bon rapport d’échelle; " +
+    "respecte la perspective et la lumière pour rester photoréaliste."
+  );
+}
+
+export function composePromptWithProvidedBackground(
+  args: { gender: string; size: string; pose: string; style: string },
+  productReference?: string,
+  variantLabel?: string
+): string {
+  const start = `Utilise la photo fournie et génère une image photoréaliste ${humanNounWithArticle(args.gender)} portant ce vêtement.`;
+  const ref = productReference ? ` Référence produit: ${productReference}.` : "";
+  const variant = variantLabel ? ` Variante: ${variantLabel}.` : "";
+  const size = segmentSize(args.size);
+  const pose = segmentPose(args.pose);
+  const guidance = segmentProvidedBackground();
+  // Style independent of specific background type
+  const style = args.style.toLowerCase() === "professionnel"
+    ? "Style: prise de vue professionnelle, rendu net et propre. Éclairage cohérent et ombres contrôlées."
+    : "Style: cliché smartphone authentique, exposition équilibrée, rendu naturel.";
+  const vinted = segmentVinted();
+  const photo = segmentPhotoTech();
+  return [start + ref + variant, size, pose, guidance, style, vinted, photo]
+    .map((s) => s.trim())
+    .join(" ")
+    .trim();
+}

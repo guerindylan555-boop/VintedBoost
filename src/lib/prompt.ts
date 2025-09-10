@@ -20,7 +20,7 @@ export function normalizeOptions(
   const style = (o.style || "amateur").toLowerCase();
   return { gender, size, pose, background, style };
 }
-import { composePromptSegments } from "./promptSegments";
+import { composePromptSegments, composePromptWithProvidedBackground } from "./promptSegments";
 
 export function buildInstruction(
   inputOpts: MannequinOptions,
@@ -43,6 +43,23 @@ export function buildInstructionForPose(
   const base = normalizeOptions(inputOpts);
   return composePromptSegments(
     { gender: base.gender, size: base.size, pose, background: base.background, style: base.style },
+    productReference,
+    variantLabel
+  );
+}
+
+/**
+ * Build instruction when an environment image is provided: omit background description.
+ */
+export function buildInstructionForPoseWithProvidedBackground(
+  inputOpts: MannequinOptions,
+  pose: Pose,
+  productReference?: string,
+  variantLabel?: string
+): string {
+  const base = normalizeOptions(inputOpts);
+  return composePromptWithProvidedBackground(
+    { gender: base.gender, size: base.size, pose, style: base.style },
     productReference,
     variantLabel
   );

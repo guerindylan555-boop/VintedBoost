@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
          kind = EXCLUDED.kind,
          image = EXCLUDED.image,
          meta = EXCLUDED.meta`,
-      [id, session.user.id, kind, kind, image, meta == null ? null : JSON.stringify(meta)]
+      [id, session.user.id, prompt, kind, image, meta == null ? null : JSON.stringify(meta)]
     );
     if (setDefault) {
       await query(

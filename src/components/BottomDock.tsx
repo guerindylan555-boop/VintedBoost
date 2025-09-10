@@ -8,7 +8,7 @@ export default function BottomDock() {
       aria-label="Navigation principale"
     >
       <div className="mx-auto max-w-screen-md px-4">
-        <div className="grid grid-cols-3 gap-2 py-2">
+        <div className="grid grid-cols-4 gap-2 py-2">
           <Link
             href="/annonces"
             className="flex flex-col items-center justify-center gap-1 rounded-md py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -49,6 +49,28 @@ export default function BottomDock() {
               <path d="M12 8v8M8 12h8" />
             </svg>
             <span className="text-[10px] font-semibold uppercase tracking-wider">Créer</span>
+          </Link>
+
+          <Link
+            href="/environnement"
+            className="flex flex-col items-center justify-center gap-1 rounded-md py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+            aria-label="Environnement"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-6 w-6"
+            >
+              <path d="M3 18V9a2 2 0 0 1 2-2h8a4 4 0 0 1 4 4v7" />
+              <path d="M3 18h18" />
+              <path d="M6 11h6" />
+            </svg>
+            <span className="text-[10px] font-medium uppercase tracking-wider">Env.</span>
           </Link>
 
           <Link

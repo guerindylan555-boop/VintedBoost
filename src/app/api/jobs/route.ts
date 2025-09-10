@@ -25,12 +25,22 @@ async function ensureJobsTable() {
       provider TEXT,
       started_at TIMESTAMPTZ,
       ended_at TIMESTAMPTZ,
-      error TEXT
+      error TEXT,
+      client_item_id TEXT
     );
   `);
   // Helpful indexes for performance
   await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_session_created ON generation_jobs(session_id, created_at DESC);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_status ON generation_jobs(status);`);
+  await query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'generation_jobs_client_item_unique'
+      ) THEN
+        EXECUTE 'CREATE UNIQUE INDEX generation_jobs_client_item_unique ON generation_jobs(session_id, client_item_id) WHERE client_item_id IS NOT NULL';
+      END IF;
+    END$$;`);
 }
 
 function isHttpUrl(str: string): boolean {
@@ -80,6 +90,20 @@ export async function POST(req: NextRequest) {
   const options = body?.options ?? null;
   const product = body?.product ?? null;
   const clientItemId = (body?.clientItemId || "").toString().trim() || null;
+
+  // Idempotency via (session_id, client_item_id)
+  if (clientItemId) {
+    try {
+      const existing = await query<{ id: string; final_mode: string | null }>(
+        `SELECT id, final_mode FROM generation_jobs WHERE session_id = $1 AND client_item_id = $2 ORDER BY created_at DESC LIMIT 1`,
+        [session.user.id, clientItemId]
+      );
+      const found = existing.rows?.[0];
+      if (found) {
+        return NextResponse.json({ id: found.id, requestedMode, finalMode: (found.final_mode === 'two' ? 'two' : found.final_mode === 'one' ? 'one' : null) }, { status: 200 });
+      }
+    } catch {}
+  }
 
   if (!body?.imageDataUrl || typeof body.imageDataUrl !== "string") {
     return NextResponse.json({ error: "Missing imageDataUrl" }, { status: 400 });
@@ -135,8 +159,8 @@ export async function POST(req: NextRequest) {
   // Insert job
   const debugJson = clientItemId ? { clientItemId } : null;
   await query(
-    `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, status, debug)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, 'created', $10::jsonb)`,
+    `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, status, debug, client_item_id)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, 'created', $10::jsonb, $11)`,
     [
       id,
       session.user.id,
@@ -148,6 +172,7 @@ export async function POST(req: NextRequest) {
       mainImageDataUrl,
       envImageDataUrl,
       debugJson == null ? null : JSON.stringify(debugJson),
+      clientItemId,
     ]
   );
 

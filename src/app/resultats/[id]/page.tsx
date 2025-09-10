@@ -172,7 +172,12 @@ export default function ResultatsPage() {
           setGenErrors(errorsByPose);
           const images = imagesAll.filter((u): u is string => typeof u === 'string' && !!u);
           // Dev: echo instructions to console to help debug prompts
-          try { if (process.env.NODE_ENV !== 'production' && Array.isArray(json?.instructions)) { console.debug('[generate-images] instructions', json.instructions); } } catch {}
+          try {
+            if (process.env.NODE_ENV !== 'production') {
+              if (Array.isArray(json?.instructions)) console.debug('[generate-images] instructions', json.instructions);
+              if (json?.debug) console.debug('[generate-images] debug', json.debug);
+            }
+          } catch {}
           const next: Item = { ...item, results: images };
           setItem(next);
           upsertLocalHistory(next);

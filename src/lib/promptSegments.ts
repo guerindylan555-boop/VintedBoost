@@ -172,9 +172,9 @@ export function composePromptSegments(
 
 // When an environment image is provided, omit background description
 export function segmentProvidedBackground(): string {
-  // Softer guidance to reduce refusals while keeping the intent clear
+  // Softer guidance with explicit indexing to bind the first image as background
   return (
-    "Composer la scène en utilisant l’arrière‑plan fourni; " +
+    "Image 1 = arrière‑plan: garder exactement cet arrière‑plan sans le modifier; " +
     "cohérence d’échelle, de perspective et de lumière."
   );
 }
@@ -185,10 +185,10 @@ export function composePromptWithProvidedBackground(
   variantLabel?: string
 ): string {
   // Two-image phrasing: make it explicit we send two images (clothing + background)
+  const genderLock = args.gender.toLowerCase() === "homme" ? "Modèle: HOMME." : "Modèle: FEMME.";
   const start =
-    `Tu reçois deux images: (1) la photo du vêtement à porter; ` +
-    `(2) l'arrière‑plan à utiliser tel quel. ` +
-    `Génère une image photoréaliste ${humanNounWithArticle(args.gender)} portant ce vêtement.`;
+    `Tu reçois deux images: (Image 1) arrière‑plan; (Image 2) vêtement. ` +
+    `${genderLock} Génère une image photoréaliste ${humanNounWithArticle(args.gender)} portant ce vêtement.`;
   const ref = productReference ? ` Référence produit: ${productReference}.` : "";
   const variant = variantLabel ? ` Variante: ${variantLabel}.` : "";
   const size = segmentSize(args.size);

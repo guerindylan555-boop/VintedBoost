@@ -213,13 +213,11 @@ export async function POST(req: NextRequest) {
             role: "user",
             content: (
               () => {
-                const parts: any[] = [
-                  { type: "text", text: instruction },
-                  { type: "image_url", image_url: { url: safeImageDataUrl } },
-                ];
-                if (safeEnvImageDataUrl) {
-                  parts.push({ type: "image_url", image_url: { url: safeEnvImageDataUrl } });
-                }
+                // Prefer sending background first (Image 1), then clothing (Image 2), then text
+                const parts: any[] = [];
+                if (safeEnvImageDataUrl) parts.push({ type: "image_url", image_url: { url: safeEnvImageDataUrl } });
+                parts.push({ type: "image_url", image_url: { url: safeImageDataUrl } });
+                parts.push({ type: "text", text: instruction });
                 return parts;
               }
             )(),
@@ -240,11 +238,13 @@ export async function POST(req: NextRequest) {
           .catch((e) => { throw e; });
       } else {
         // Google path: prefer Google always unless user explicitly switches provider
-        const parts = [
-          { text: instruction },
-          { inline_data: { mime_type: mimeType, data: base64Data } },
-          ...(safeEnvImageDataUrl && envMimeType && envBase64Data ? [{ inline_data: { mime_type: envMimeType, data: envBase64Data } }] : []),
-        ];
+        // Send environment image first (Image 1), then clothing image (Image 2), then text
+        const parts: Array<Record<string, unknown>> = [];
+        if (safeEnvImageDataUrl && envMimeType && envBase64Data) {
+          parts.push({ inline_data: { mime_type: envMimeType, data: envBase64Data } });
+        }
+        parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
+        parts.push({ text: instruction });
         const payload = {
           contents: [{ role: "user", parts }],
           // Relax safety where permitted by REST API enums

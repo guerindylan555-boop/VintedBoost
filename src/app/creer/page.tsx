@@ -189,6 +189,8 @@ export default function CreatePage() {
 
   async function generate() {
     if (!imageDataUrl) return;
+    // Resolve environment image synchronously to avoid race with React state
+    let selectedEnv: { id: string; image: string } | null = null;
     if (useDefaultEnv) {
       let env = envKind === "salon" ? defaultSalon : defaultChambre;
       if (!env) {
@@ -197,7 +199,7 @@ export default function CreatePage() {
           const res = await fetch(`/api/environments?kind=${encodeURIComponent(envKind)}`, { cache: "no-store" });
           if (res.ok) {
             const data = await res.json();
-            const items = Array.isArray(data?.items) ? data.items as Array<{ id: string; kind: string; image: string; isDefault?: boolean }> : [];
+            const items = Array.isArray(data?.items) ? (data.items as Array<{ id: string; kind: string; image: string; isDefault?: boolean }>) : [];
             const def = items.find((x) => x.isDefault);
             if (def) {
               env = { id: def.id, image: def.image };
@@ -206,8 +208,9 @@ export default function CreatePage() {
             }
           }
         } catch {}
-        if (!env) { setError("Définissez d'abord un environnement par défaut"); return; }
       }
+      if (!env) { setError("Définissez d'abord un environnement par défaut"); return; }
+      selectedEnv = env;
     }
     setGenerating(true);
     setError(null);
@@ -234,14 +237,14 @@ export default function CreatePage() {
         options: normalizedOptions,
         product,
         descEnabled,
-        env: useDefaultEnv ? { useDefault: true, kind: envKind, image: (envKind === "salon" ? defaultSalon : defaultChambre)?.image } : undefined,
+        env: useDefaultEnv ? { useDefault: true, kind: envKind, image: selectedEnv?.image } : undefined,
       },
       title: title?.trim() || undefined,
     };
     // Dev snapshot log
     try {
       if (process.env.NODE_ENV !== 'production') {
-        const envImg = item.meta?.env?.image || null;
+        const envImg = (useDefaultEnv ? (selectedEnv?.image || null) : null) || item.meta?.env?.image || null;
         const len = typeof envImg === 'string' ? envImg.length : 0;
         // eslint-disable-next-line no-console
         console.debug('[create] generate snapshot', {

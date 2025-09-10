@@ -43,6 +43,11 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const kindFilterRaw = (searchParams.get("kind") || "").toLowerCase();
   const kindFilter = kindFilterRaw === "chambre" || kindFilterRaw === "salon" ? kindFilterRaw : null;
+  // Build filter to avoid mixing kinds; include legacy 'bedroom' only for 'chambre'
+  const filterSql = kindFilter
+    ? (kindFilter === 'chambre' ? "AND (LOWER(kind) = $2 OR LOWER(kind) = 'bedroom')" : "AND LOWER(kind) = $2")
+    : "";
+  const params = (kindFilter ? [session.user.id, kindFilter] : [session.user.id]) as unknown[];
   const { rows } = await query<{
     id: string;
     created_at: string;
@@ -55,10 +60,10 @@ export async function GET(req: NextRequest) {
     `SELECT id, created_at, prompt, kind, image, meta, is_default
      FROM environment_images
      WHERE session_id = $1
-       ${kindFilter ? "AND (LOWER(kind) = $2 OR LOWER(kind) = 'bedroom')" : ""}
+       ${filterSql}
      ORDER BY created_at DESC
      LIMIT 200`,
-    kindFilter ? [session.user.id, kindFilter] : [session.user.id]
+    params
   );
   return NextResponse.json({
     items: rows.map((r) => ({

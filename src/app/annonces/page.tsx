@@ -97,11 +97,24 @@ export default function MesAnnoncesPage() {
     return sorted;
   }, [items, query, sortOrder]);
 
-  function openItem(it: Item) {
+  async function openItem(it: Item) {
+    try { localStorage.setItem("vintedboost_last", JSON.stringify(it)); } catch {}
+    const id = String(it.id);
+    // Prefer unified results page by job id; try direct job id first
     try {
-      localStorage.setItem("vintedboost_last", JSON.stringify(it));
+      const r = await fetchWithTimeout(`/api/jobs/${encodeURIComponent(id)}`, undefined, 1500);
+      if (r.ok) { router.push(`/resultats/${encodeURIComponent(id)}`); return; }
     } catch {}
-    router.push(`/annonces/${encodeURIComponent(String(it.id))}`);
+    // Try mapping from legacy client item id to latest job
+    try {
+      const r2 = await fetchWithTimeout(`/api/jobs/by-client/${encodeURIComponent(id)}`, undefined, 1500);
+      if (r2.ok) {
+        const job = await r2.json() as { id?: string };
+        if (job?.id) { router.push(`/resultats/${encodeURIComponent(String(job.id))}`); return; }
+      }
+    } catch {}
+    // Fallback: legacy detail page
+    router.push(`/annonces/${encodeURIComponent(id)}`);
   }
 
   async function duplicateItem(it: Item) {
@@ -234,7 +247,7 @@ export default function MesAnnoncesPage() {
             {filtered.map((h) => (
               <div
                 key={h.id}
-                onClick={() => openItem(h)}
+                onClick={() => { void openItem(h); }}
                 className="group relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-900/60 text-left hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
               >
                 <div className="w-full overflow-hidden border-b border-gray-100 dark:border-gray-800">

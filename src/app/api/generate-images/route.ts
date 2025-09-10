@@ -6,7 +6,7 @@ import {
 } from "@/lib/openrouter";
 import { googleAiFetch } from "@/lib/google-ai";
 import { MannequinOptions, buildInstruction, buildInstructionForPose, buildInstructionForPoseWithProvidedBackground, type Pose } from "@/lib/prompt";
-import { normalizeImageDataUrl } from "@/lib/image";
+import { normalizeImageDataUrl, parseDataUrl } from "@/lib/image";
 
 export const runtime = "nodejs";
 
@@ -51,13 +51,34 @@ export async function POST(req: NextRequest) {
     return legacy.slice(0, n);
   })();
 
+  // Helper: coerce a possibly-URL or malformed data URL into a proper data URL
+  async function coerceToDataUrl(input: string): Promise<string> {
+    let str = input;
+    if (typeof str !== "string" || !str) throw new Error("Invalid image data");
+    // Fix accidental base66 typos
+    if (str.startsWith("data:") && str.includes(";base66,")) {
+      str = str.replace(";base66,", ";base64,");
+    }
+    if (str.startsWith("http://") || str.startsWith("https://")) {
+      const resp = await fetch(str);
+      if (!resp.ok) throw new Error("Failed to fetch environment image");
+      const contentType = resp.headers.get("content-type") || "image/jpeg";
+      const buf = Buffer.from(await resp.arrayBuffer());
+      const b64 = buf.toString("base64");
+      return `data:${contentType};base64,${b64}`;
+    }
+    if (!str.startsWith("data:")) throw new Error("Invalid image data format");
+    return str;
+  }
+
   // Normalize input image (handle HEIC/unknown → JPEG, max 2048px)
   let safeImageDataUrl = imageDataUrl;
   let safeEnvImageDataUrl: string | null = null;
   try {
     safeImageDataUrl = await normalizeImageDataUrl(imageDataUrl);
     if (environmentImageDataUrl && typeof environmentImageDataUrl === "string") {
-      safeEnvImageDataUrl = await normalizeImageDataUrl(environmentImageDataUrl);
+      const coerced = await coerceToDataUrl(environmentImageDataUrl);
+      safeEnvImageDataUrl = await normalizeImageDataUrl(coerced);
     }
   } catch {
     return NextResponse.json(
@@ -175,8 +196,7 @@ export async function POST(req: NextRequest) {
     }
   } catch {}
   try {
-    // Run per-pose generations in parallel
-    const tasks = requestedPoses.map((pose, idx) => {
+    const buildTask = (pose: Pose, idx: number) => {
       const variantLabel = pose;
       const instruction = safeEnvImageDataUrl
         ? buildInstructionForPoseWithProvidedBackground(options || {}, pose, productReference, variantLabel)
@@ -249,9 +269,26 @@ export async function POST(req: NextRequest) {
             return null;
           });
       }
-    });
+    };
 
-    const settled = await Promise.allSettled(tasks);
+    // For two-image mode, throttle to reduce policy refusals
+    let settled: PromiseSettledResult<string | null>[];
+    if (safeEnvImageDataUrl) {
+      settled = [];
+      for (let i = 0; i < requestedPoses.length; i++) {
+        try {
+          const value = await buildTask(requestedPoses[i], i);
+          settled.push({ status: "fulfilled", value } as PromiseFulfilledResult<string | null>);
+        } catch (e) {
+          settled.push({ status: "rejected", reason: e } as PromiseRejectedResult);
+        }
+        // small stagger
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    } else {
+      const tasks = requestedPoses.map((pose, idx) => buildTask(pose, idx));
+      settled = await Promise.allSettled(tasks);
+    }
     const imagesOut: string[] = [];
     const errorsByIndex: Record<number, string> = {};
     settled.forEach((r, idx) => {
@@ -263,12 +300,15 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Dev observability: status per pose
+    // Dev observability: status per pose + basic sizes
     try {
       if (process.env.NODE_ENV !== "production") {
         const status = requestedPoses.map((p, i) => ({ pose: p, ok: Boolean(imagesOut[i]), error: errorsByIndex[i] || null }));
+        // Log sizes/mimes for inputs
+        const a = (() => { try { const { mime, buffer } = parseDataUrl(safeImageDataUrl); return { mime, bytes: buffer.length }; } catch { return null; } })();
+        const b = safeEnvImageDataUrl ? (() => { try { const { mime, buffer } = parseDataUrl(safeEnvImageDataUrl!); return { mime, bytes: buffer.length }; } catch { return null; } })() : null;
         // eslint-disable-next-line no-console
-        console.debug("[generate-images] per-pose status=", status);
+        console.debug("[generate-images] per-pose status=", status, "inputs:", { main: a, env: b });
       }
     } catch {}
 
@@ -280,7 +320,7 @@ export async function POST(req: NextRequest) {
           : "Aucune image reçue du fournisseur. Réessayez ou changez de modèle.";
       return NextResponse.json({ error: friendly, poses: requestedPoses, errors: errorsByIndex }, { status: 422 });
     }
-    const payload: { images: Array<string | null>; instructions?: string[]; poses: Pose[]; errors?: Record<string, string> } = {
+    const payload: { images: Array<string | null>; instructions?: string[]; poses: Pose[]; errors?: Record<string, string>; debug?: Record<string, unknown> } = {
       images: imagesOut,
       poses: requestedPoses,
     };
@@ -288,10 +328,11 @@ export async function POST(req: NextRequest) {
     if (hasErrors) {
       payload.errors = Object.fromEntries(Object.entries(errorsByIndex).map(([i, msg]) => [requestedPoses[Number(i)], msg]));
     }
-    // Help debugging locally by returning the exact instructions
+    // Help debugging locally by returning the exact instructions and mode
     try {
       if (process.env.NODE_ENV !== "production") {
         payload.instructions = instructionEchoes;
+        payload.debug = { mode: safeEnvImageDataUrl ? "two-images" : "one-image", imagesCountSent: safeEnvImageDataUrl ? 2 : 1 };
       }
     } catch {}
     return NextResponse.json(payload, { status: 200 });

@@ -184,19 +184,22 @@ export function composePromptWithProvidedBackground(
   productReference?: string,
   variantLabel?: string
 ): string {
-  const start = `Utilise la photo fournie et génère une image photoréaliste ${humanNounWithArticle(args.gender)} portant ce vêtement.`;
+  // Two-image phrasing: make it explicit we send two images (clothing + background)
+  const start =
+    `Tu reçois deux images: (1) la photo du vêtement à porter; ` +
+    `(2) l'arrière‑plan à utiliser tel quel. ` +
+    `Génère une image photoréaliste ${humanNounWithArticle(args.gender)} portant ce vêtement.`;
   const ref = productReference ? ` Référence produit: ${productReference}.` : "";
   const variant = variantLabel ? ` Variante: ${variantLabel}.` : "";
   const size = segmentSize(args.size);
   const pose = segmentPose(args.pose);
   const guidance = segmentProvidedBackground();
-  // Style independent of specific background type
+  // Keep style gentle and generic to reduce refusals
   const style = args.style.toLowerCase() === "professionnel"
     ? "Style: prise de vue professionnelle, rendu net et propre. Éclairage cohérent et ombres contrôlées."
     : "Style: cliché smartphone authentique, exposition équilibrée, rendu naturel.";
-  const vinted = segmentVinted();
-  const photo = segmentPhotoTech();
-  return [start + ref + variant, size, pose, guidance, style, vinted, photo]
+  // NOTE: intentionally omitting Vinted and detailed photo/ratio constraints in two‑image mode
+  return [start + ref + variant, size, pose, guidance, style]
     .map((s) => s.trim())
     .join(" ")
     .trim();

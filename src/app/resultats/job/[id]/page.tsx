@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Toggle from "@/components/Toggle";
 import Image from "next/image";
+import LoadingScreen from "@/components/LoadingScreen";
 
 export default function JobResultPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState<any>(null);
   const [error, setError] = useState<string|null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
 
   useEffect(() => {
     const jid = String(id || "");
@@ -34,8 +38,16 @@ export default function JobResultPage() {
     return job?.debug || null;
   }, [job]);
 
-  if (loading) return <div className="mx-auto max-w-screen-md p-4">Chargement…</div>;
-  if (error) return <div className="mx-auto max-w-screen-md p-4 text-red-600">{error}</div>;
+  if (loading) return (
+    <div className="mx-auto max-w-screen-md p-4">
+      <LoadingScreen title="Préparation…" subtitle="Initialisation du job" progress={progress} />
+    </div>
+  );
+  if (error) return (
+    <div className="mx-auto max-w-screen-md p-4">
+      <LoadingScreen title="Échec de la génération" error={error} onRetry={()=>location.reload()} onCancel={()=>router.push("/creer")} />
+    </div>
+  );
   if (!job) return <div className="mx-auto max-w-screen-md p-4">Introuvable</div>;
 
   const images: string[] = Array.isArray(job?.results?.images) ? job.results.images.filter(Boolean) : [];
@@ -43,6 +55,34 @@ export default function JobResultPage() {
 
   return (
     <div className="mx-auto max-w-screen-md p-4">
+      {/* Auto-run generation once when job is loaded and not yet done */}
+      {(() => {
+        if (!running && job?.status === 'created') {
+          setRunning(true);
+          setProgress(10);
+          (async () => {
+            try {
+              const provider = (()=>{ try { return localStorage.getItem('imageProvider'); } catch { return null; } })();
+              const headers: Record<string,string> = { 'Content-Type': 'application/json' };
+              if (provider) headers['X-Image-Provider'] = provider;
+              const res = await fetch(`/api/jobs/${encodeURIComponent(String(id||''))}/generate`, { method: 'POST', headers });
+              const data = await res.json();
+              if (!res.ok) throw new Error(String((data as any)?.error || 'Échec de la génération'));
+              setProgress(90);
+              // refresh job view
+              const r = await fetch(`/api/jobs/${encodeURIComponent(String(id||''))}`);
+              const j = await r.json();
+              setJob(j);
+              setProgress(100);
+              setRunning(false);
+            } catch (e: any) {
+              setError(e?.message || String(e));
+              setRunning(false);
+            }
+          })();
+        }
+        return null;
+      })()}
       <div className="mb-3 flex items-center justify-between">
         <h1 className="text-base font-semibold uppercase tracking-wide">Résultat (Job)</h1>
         <div className="flex items-center gap-2">
@@ -85,6 +125,12 @@ export default function JobResultPage() {
           ) : null}
         </div>
       )}
+
+      {job?.status !== 'done' ? (
+        <div className="mb-4">
+          <LoadingScreen title="Génération en cours" subtitle="Images" progress={progress} stepLabel={running?"En cours":"En attente"} onCancel={()=>router.push('/creer')} />
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {images.map((u, i) => (

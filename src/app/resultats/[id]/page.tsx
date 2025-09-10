@@ -99,20 +99,45 @@ export default function ResultatsPage() {
       try {
         const tmp = sessionStorage.getItem(`vintedboost_tmp_${theId}`);
         if (tmp) {
-          const obj = JSON.parse(tmp) as Item;
-          if (obj && obj.source) found = obj;
+          const obj = JSON.parse(tmp) as (Item & { jobId?: string | null });
+          if (obj && obj.source) found = obj as Item;
         }
       } catch {}
     }
-    setItem(found);
-    setLoadingItem(false);
-    try {
-      const desc = (found?.description || null) as (null | { title?: string; descriptionText?: string });
-      const t = (found?.title || desc?.title || "").toString();
-      if (t) setTitle(String(t));
-      const d = (desc?.descriptionText || "").toString();
-      if (d) setDescText(String(d));
-    } catch {}
+    (async () => {
+      // Server fetch as last resort when we have a jobId saved but no local item
+      if (!found) {
+        try {
+          const tmp = sessionStorage.getItem(`vintedboost_tmp_${theId}`);
+          const jobId = tmp ? (JSON.parse(tmp) as { jobId?: string | null })?.jobId : null;
+          if (jobId) {
+            const r = await fetch(`/api/jobs/${encodeURIComponent(String(jobId))}`);
+            if (r.ok) {
+              const job = await r.json() as { main_image?: string; options?: MannequinOptions; product?: any };
+              if (job?.main_image) {
+                found = {
+                  id: theId,
+                  createdAt: Date.now(),
+                  source: job.main_image,
+                  results: [],
+                  status: "draft",
+                  meta: { options: (job.options || {}) as MannequinOptions, product: (job.product || { brand: "", model: "" }), descEnabled: false },
+                } as Item;
+              }
+            }
+          }
+        } catch {}
+      }
+      setItem(found);
+      setLoadingItem(false);
+      try {
+        const desc = (found?.description || null) as (null | { title?: string; descriptionText?: string });
+        const t = (found?.title || desc?.title || "").toString();
+        if (t) setTitle(String(t));
+        const d = (desc?.descriptionText || "").toString();
+        if (d) setDescText(String(d));
+      } catch {}
+    })();
   }, [id]);
 
   const descEnabled = Boolean(item?.meta?.descEnabled);

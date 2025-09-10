@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
       envRef?: { kind?: "chambre" | "salon" } | null;
       envImage?: string | null; // optional (data url or http url)
       personImage?: string | null; // optional (data url or http url)
+      personRef?: { gender?: "femme" | "homme" } | null;
       options?: Record<string, unknown> | null;
       product?: Record<string, unknown> | null;
       poses?: string[] | null;
@@ -157,7 +158,21 @@ export async function POST(req: NextRequest) {
         const coerced = await coerceToDataUrl(fromBody);
         personImageDataUrl = await normalizeImageDataUrl(coerced);
       } else {
-        // if not provided, try user default by gender from person_images? (skipped for now)
+        // Resolve from user default by gender if requested
+        const gender = (body?.personRef?.gender || "").toString().toLowerCase();
+        if (gender === 'femme' || gender === 'homme') {
+          try {
+            const { rows } = await query<{ image: string | null }>(
+              `SELECT image FROM person_images WHERE session_id = $1 AND is_default = TRUE AND LOWER(gender) = LOWER($2) LIMIT 1`,
+              [session.user.id, gender]
+            );
+            const img = rows?.[0]?.image || null;
+            if (img) {
+              const coerced = await coerceToDataUrl(img);
+              personImageDataUrl = await normalizeImageDataUrl(coerced);
+            }
+          } catch {}
+        }
       }
     } catch {
       personImageDataUrl = null;

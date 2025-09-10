@@ -99,6 +99,11 @@ export default function CreatePage() {
   const [envKind, setEnvKind] = useState<"chambre" | "salon">("chambre");
   const [defaultChambre, setDefaultChambre] = useState<{ id: string; image: string } | null>(null);
   const [defaultSalon, setDefaultSalon] = useState<{ id: string; image: string } | null>(null);
+  // Modèle (personne) par défaut
+  const [useDefaultPerson, setUseDefaultPerson] = useState(false);
+  const [personGender, setPersonGender] = useState<"femme" | "homme">("femme");
+  const [defaultFemme, setDefaultFemme] = useState<{ id: string; image: string } | null>(null);
+  const [defaultHomme, setDefaultHomme] = useState<{ id: string; image: string } | null>(null);
 
   // description/result generation is deferred to /resultats/[id]
 
@@ -233,6 +238,23 @@ export default function CreatePage() {
     // Ensure we have an item id, and store snapshot meta
     let id = currentItemId;
     if (!id) id = newId();
+    // Resolve default person synchronously
+    let selectedPerson: { id: string; image: string } | null = null;
+    if (useDefaultPerson) {
+      selectedPerson = personGender === "homme" ? defaultHomme : defaultFemme;
+      if (!selectedPerson) {
+        try {
+          const r = await fetch(`/api/persons?gender=${encodeURIComponent(personGender)}`, { cache: "no-store" });
+          if (r.ok) {
+            const data = await r.json();
+            const items = Array.isArray((data as any)?.items) ? ((data as any).items as Array<{ id: string; gender: string; image: string; isDefault?: boolean }>) : [];
+            const def = items.find((x) => x.isDefault);
+            if (def) selectedPerson = { id: def.id, image: def.image };
+          }
+        } catch {}
+      }
+      if (!selectedPerson) { setError("Définissez d'abord un modèle par défaut"); setGenerating(false); return; }
+    }
     // Normalize poses: prefer explicit options.poses, else fallback to single pose
     const allowedPoses: Pose[] = ["face", "trois-quarts", "profil"];
     const rawPoses = Array.isArray(options.poses) && options.poses.length > 0
@@ -287,6 +309,7 @@ export default function CreatePage() {
           imageDataUrl: imageDataUrl,
           requestedMode,
           envRef: useDefaultEnv ? { kind: envKind } : null,
+          personRef: useDefaultPerson ? { gender: personGender } : null,
           options: normalizedOptions,
           product,
           poses: normalizedPoses,
@@ -352,6 +375,10 @@ export default function CreatePage() {
       if (rawUseDefault != null) setUseDefaultEnv(rawUseDefault === "true");
       const rawEnvKind = localStorage.getItem("vintedboost_env_kind");
       if (rawEnvKind === "salon" || rawEnvKind === "chambre") setEnvKind(rawEnvKind);
+      const rawUseDefaultPerson = localStorage.getItem("vintedboost_use_default_person");
+      if (rawUseDefaultPerson != null) setUseDefaultPerson(rawUseDefaultPerson === "true");
+      const rawPersonGender = localStorage.getItem("vintedboost_person_gender");
+      if (rawPersonGender === "femme" || rawPersonGender === "homme") setPersonGender(rawPersonGender);
     } catch {}
   }, []);
 
@@ -373,6 +400,12 @@ export default function CreatePage() {
   useEffect(() => {
     try { localStorage.setItem("vintedboost_env_kind", envKind); } catch {}
   }, [envKind]);
+  useEffect(() => {
+    try { localStorage.setItem("vintedboost_use_default_person", String(useDefaultPerson)); } catch {}
+  }, [useDefaultPerson]);
+  useEffect(() => {
+    try { localStorage.setItem("vintedboost_person_gender", personGender); } catch {}
+  }, [personGender]);
 
   // Récupérer l'environnement par défaut
   useEffect(() => {
@@ -386,6 +419,22 @@ export default function CreatePage() {
         const defS = items.find((x) => x.kind?.toLowerCase?.() === "salon" && x.isDefault);
         if (defC) setDefaultChambre({ id: defC.id, image: defC.image });
         if (defS) setDefaultSalon({ id: defS.id, image: defS.image });
+      } catch {}
+    })();
+  }, []);
+
+  // Récupérer les modèles par défaut (femme/homme)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/persons", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { items?: Array<{ id: string; gender: string; image: string; isDefault?: boolean }> };
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const defF = items.find((x) => (x.gender?.toLowerCase?.() === "femme") && x.isDefault);
+        const defH = items.find((x) => (x.gender?.toLowerCase?.() === "homme") && x.isDefault);
+        if (defF) setDefaultFemme({ id: defF.id, image: defF.image });
+        if (defH) setDefaultHomme({ id: defH.id, image: defH.image });
       } catch {}
     })();
   }, []);
@@ -684,6 +733,41 @@ export default function CreatePage() {
                           </div>
                         </div>
                       )}
+                    </div>
+                    <div>
+                      <div className="mb-1 flex items-center justify-between">
+                        <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Modèle / Personne</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-500">Utiliser mon défaut</span>
+                          <Toggle checked={useDefaultPerson} onChange={setUseDefaultPerson} ariaLabel="Utiliser le modèle par défaut" />
+                        </div>
+                      </div>
+                      {useDefaultPerson ? (
+                        <div className="grid gap-2">
+                          <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1 bg-white dark:bg-gray-900 w-max">
+                            {(["femme", "homme"] as const).map((g) => (
+                              <button key={g} onClick={() => setPersonGender(g)} className={cx("px-3 py-1.5 text-xs rounded-md", personGender === g ? "bg-brand-600 text-white" : "text-gray-700 dark:text-gray-200")}>
+                                {g}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {personGender === "femme" && defaultFemme ? (
+                              <div className="relative h-14 w-14 overflow-hidden rounded-md border border-gray-200 dark:border-gray-700">
+                                <Image src={defaultFemme.image} alt="modèle femme défaut" fill sizes="56px" className="object-cover" unoptimized />
+                              </div>
+                            ) : null}
+                            {personGender === "homme" && defaultHomme ? (
+                              <div className="relative h-14 w-14 overflow-hidden rounded-md border border-gray-200 dark:border-gray-700">
+                                <Image src={defaultHomme.image} alt="modèle homme défaut" fill sizes="56px" className="object-cover" unoptimized />
+                              </div>
+                            ) : null}
+                            {((personGender === "femme" && !defaultFemme) || (personGender === "homme" && !defaultHomme)) ? (
+                              <div className="text-xs text-gray-500">Aucun modèle par défaut.</div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                     <div>
                       <div className="flex items-center justify-between">

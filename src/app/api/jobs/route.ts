@@ -128,8 +128,12 @@ export async function POST(req: NextRequest) {
     } else if (body?.envRef?.kind) {
       // Load default environment for this session and kind
       const kind = body.envRef.kind;
+      const kindLower = String(kind).toLowerCase();
+      const filterSql = kindLower === 'chambre'
+        ? `AND (LOWER(kind) = LOWER($2) OR LOWER(kind) = 'bedroom')`
+        : `AND LOWER(kind) = LOWER($2)`;
       const { rows } = await query<{ image: string | null }>(
-        `SELECT image FROM environment_images WHERE session_id = $1 AND is_default = TRUE AND LOWER(kind) = LOWER($2) LIMIT 1`,
+        `SELECT image FROM environment_images WHERE session_id = $1 AND is_default = TRUE ${filterSql} LIMIT 1`,
         [session.user.id, kind]
       );
       const img = rows?.[0]?.image || null;

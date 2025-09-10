@@ -1,4 +1,4 @@
-import { Pool, type QueryResultRow } from "pg";
+import { Pool } from "pg";
 
 // Shared Postgres pool for the whole app
 const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
@@ -20,10 +20,10 @@ export interface QueryResult<T> {
   rowCount: number;
 }
 
-export async function query<T extends QueryResultRow = QueryResultRow>(
+export async function query<T = unknown>(
   text: string,
   params?: readonly unknown[]
 ): Promise<QueryResult<T>> {
-  const res = await pool.query<T>(text, params as any);
-  return { rows: res.rows, rowCount: res.rowCount };
+  const res = await pool.query(text, params as unknown as any);
+  return { rows: res.rows as unknown as T[], rowCount: res.rowCount };
 }

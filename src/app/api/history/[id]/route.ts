@@ -1,24 +1,24 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { query } from "@/lib/db";
 import { getSessionId, setSessionCookie } from "@/lib/session";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
 async function ensureTable() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS history_items (
+  await query(
+    `CREATE TABLE IF NOT EXISTS history_items (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       source_image TEXT NOT NULL,
       results JSONB NOT NULL
-    );
-  `;
-  await sql`
-    ALTER TABLE history_items
-    ADD COLUMN IF NOT EXISTS description JSONB
-  `;
+    );`
+  );
+  await query(
+    `ALTER TABLE history_items
+     ADD COLUMN IF NOT EXISTS description JSONB`
+  );
 }
 
 export async function GET(
@@ -37,18 +37,19 @@ export async function GET(
     newSessionId = sessionId;
   }
   await ensureTable();
-  const { rows } = await sql<{
+  const { rows } = await query<{
     id: string;
     created_at: string;
     source_image: string;
     results: unknown;
     description: unknown | null;
-  }>`
-    SELECT id, created_at, source_image, results, description
-    FROM history_items
-    WHERE id = ${id} AND session_id = ${sessionId}
-    LIMIT 1
-  `;
+  }>(
+    `SELECT id, created_at, source_image, results, description
+     FROM history_items
+     WHERE id = $1 AND session_id = $2
+     LIMIT 1`,
+    [id, sessionId]
+  );
   if (rows.length === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -85,11 +86,12 @@ export async function PATCH(req: Request, context: unknown) {
   }
 
   await ensureTable();
-  const result = await sql`
-    UPDATE history_items
-    SET description = ${body.description == null ? null : JSON.stringify(body.description)}::jsonb
-    WHERE id = ${id} AND session_id = ${sessionId}
-  `;
+  const result = await query(
+    `UPDATE history_items
+     SET description = $1::jsonb
+     WHERE id = $2 AND session_id = $3`,
+    [body.description == null ? null : JSON.stringify(body.description), id, sessionId]
+  );
   if ((result as unknown as { rowCount?: number }).rowCount === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -107,10 +109,11 @@ export async function DELETE(_req: Request, context: unknown) {
   }
 
   await ensureTable();
-  const result = await sql`
-    DELETE FROM history_items
-    WHERE id = ${id} AND session_id = ${sessionId}
-  `;
+  const result = await query(
+    `DELETE FROM history_items
+     WHERE id = $1 AND session_id = $2`,
+    [id, sessionId]
+  );
   if ((result as unknown as { rowCount?: number }).rowCount === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

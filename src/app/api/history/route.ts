@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { NextRequest, NextResponse } from "next/server";
+import { query } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
 async function ensureTable() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS history_items (
+  await query(
+    `CREATE TABLE IF NOT EXISTS history_items (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       source_image TEXT NOT NULL,
       results JSONB NOT NULL
-    );
-  `;
-  // Ensure optional description column exists
-  await sql`
-    ALTER TABLE history_items
-    ADD COLUMN IF NOT EXISTS description JSONB
-  `;
+    );`
+  );
+  await query(
+    `ALTER TABLE history_items
+     ADD COLUMN IF NOT EXISTS description JSONB`
+  );
 }
 
 export async function GET(req: NextRequest) {
@@ -28,19 +28,20 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const sessionId = session.user.id;
   await ensureTable();
-  const { rows } = await sql<{
+  const { rows } = await query<{
     id: string;
     created_at: string;
     source_image: string;
     results: unknown;
     description: unknown | null;
-  }>`
-    SELECT id, created_at, source_image, results, description
-    FROM history_items
-    WHERE session_id = ${sessionId}
-    ORDER BY created_at DESC
-    LIMIT 50
-  `;
+  }>(
+    `SELECT id, created_at, source_image, results, description
+     FROM history_items
+     WHERE session_id = $1
+     ORDER BY created_at DESC
+     LIMIT 50`,
+    [sessionId]
+  );
   const res = NextResponse.json({
     items: rows.map((r) => ({
       id: r.id,
@@ -81,21 +82,22 @@ export async function POST(req: NextRequest) {
       : new Date();
 
   await ensureTable();
-  await sql`
-    INSERT INTO history_items (id, session_id, created_at, source_image, results, description)
-    VALUES (
-      ${id},
-      ${session.user.id},
-      ${created.toISOString()},
-      ${body.source},
-      ${JSON.stringify(body.results)}::jsonb,
-      ${body.description == null ? null : JSON.stringify(body.description)}::jsonb
-    )
-    ON CONFLICT (id) DO UPDATE SET
-      source_image = EXCLUDED.source_image,
-      results = EXCLUDED.results,
-      description = EXCLUDED.description
-  `;
+  await query(
+    `INSERT INTO history_items (id, session_id, created_at, source_image, results, description)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+     ON CONFLICT (id) DO UPDATE SET
+       source_image = EXCLUDED.source_image,
+       results = EXCLUDED.results,
+       description = EXCLUDED.description`,
+    [
+      id,
+      session.user.id,
+      created.toISOString(),
+      body.source,
+      JSON.stringify(body.results),
+      body.description == null ? null : JSON.stringify(body.description),
+    ]
+  );
 
   return NextResponse.json({ ok: true, id });
 }

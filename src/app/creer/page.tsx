@@ -261,8 +261,35 @@ export default function CreatePage() {
     // Temp handoff in case history write is slow or blocked
     try { sessionStorage.setItem(`vintedboost_tmp_${id}`, JSON.stringify(item)); } catch {}
     setCurrentItemId(id);
-    // Navigate to results page where generation happens with loading screen
-    try { router.push(`/resultats/${encodeURIComponent(String(id))}`); } finally {
+    // New pipeline: create a generation job server-side, then navigate to /resultats/job/[id]
+    try {
+      const requestedMode: "one" | "two" | "auto" = useDefaultEnv ? "two" : "one";
+      const provider = (() => { try { return localStorage.getItem("imageProvider"); } catch { return null; } })();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (provider) headers["X-Image-Provider"] = provider;
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          imageDataUrl: imageDataUrl,
+          requestedMode,
+          envRef: useDefaultEnv ? { kind: envKind } : null,
+          options: normalizedOptions,
+          product,
+          poses: normalizedPoses,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = (data && typeof data === 'object' && (data as any).error) ? String((data as any).error) : "Échec de la préparation du job";
+        throw new Error(msg);
+      }
+      const jobId = (data as any)?.id as string | undefined;
+      if (!jobId) throw new Error("Job id manquant");
+      router.push(`/resultats/job/${encodeURIComponent(String(jobId))}`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
       setGenerating(false);
     }
   }

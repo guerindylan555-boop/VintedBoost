@@ -73,75 +73,34 @@ export default function ResultatsPage() {
   const [genMode, setGenMode] = useState<"one-image" | "two-images" | null>(null);
   const [requestedPoses, setRequestedPoses] = useState<string[] | null>(null);
 
-  // Load item
+  // Load item (unified: id is the jobId)
   useEffect(() => {
-    const theId = decodeURIComponent(String(id || ""));
-    if (!theId) { setLoadingItem(false); return; }
+    const jobId = decodeURIComponent(String(id || ""));
+    if (!jobId) { setLoadingItem(false); return; }
     let found: Item | null = null;
+    // sessionStorage snapshot by jobId
     try {
-      const rawHist = localStorage.getItem("vintedboost_history");
-      if (rawHist) {
-        const list = JSON.parse(rawHist) as Item[];
-        found = Array.isArray(list) ? list.find((x) => String(x.id) === theId) || null : null;
+      const tmp = sessionStorage.getItem(`vintedboost_tmp_${jobId}`);
+      if (tmp) {
+        const obj = JSON.parse(tmp) as (Item & { jobId?: string | null });
+        if (obj && obj.source) found = obj as Item;
       }
     } catch {}
-    if (!found) {
-      try {
-        const rawLast = localStorage.getItem("vintedboost_last");
-        if (rawLast) {
-          const last = JSON.parse(rawLast) as Item;
-          if (last && String(last.id) === theId) found = last;
-        }
-      } catch {}
-    }
-    // Fallback: sessionStorage temporary payload
-    if (!found) {
-      try {
-        const tmp = sessionStorage.getItem(`vintedboost_tmp_${theId}`);
-        if (tmp) {
-          const obj = JSON.parse(tmp) as (Item & { jobId?: string | null });
-          if (obj && obj.source) found = obj as Item;
-        }
-      } catch {}
-    }
     (async () => {
-      // Server fetch fallback when we have a saved jobId or when we can map by clientItemId
       if (!found) {
         try {
-          const tmp = sessionStorage.getItem(`vintedboost_tmp_${theId}`);
-          const jobId = tmp ? (JSON.parse(tmp) as { jobId?: string | null })?.jobId : null;
-          if (jobId) {
-            const r = await fetch(`/api/jobs/${encodeURIComponent(String(jobId))}`);
-            if (r.ok) {
-              const job = await r.json() as { main_image?: string; options?: MannequinOptions; product?: any };
-              if (job?.main_image) {
-                found = {
-                  id: theId,
-                  createdAt: Date.now(),
-                  source: job.main_image,
-                  results: [],
-                  status: "draft",
-                  meta: { options: (job.options || {}) as MannequinOptions, product: (job.product || { brand: "", model: "" }), descEnabled: false },
-                } as Item;
-              }
-            }
-          } else {
-            // Try by-client mapping if sessionStorage lost the jobId
-            const r2 = await fetch(`/api/jobs/by-client/${encodeURIComponent(String(theId))}`);
-            if (r2.ok) {
-              const job = await r2.json() as { id?: string; main_image?: string; options?: MannequinOptions; product?: any };
-              if (job?.main_image) {
-                found = {
-                  id: theId,
-                  createdAt: Date.now(),
-                  source: job.main_image,
-                  results: [],
-                  status: "draft",
-                  meta: { options: (job.options || {}) as MannequinOptions, product: (job.product || { brand: "", model: "" }), descEnabled: false },
-                } as Item;
-                // Rehydrate tmp with jobId for later steps
-                try { sessionStorage.setItem(`vintedboost_tmp_${theId}`, JSON.stringify({ id: theId, jobId: job.id, source: job.main_image })); } catch {}
-              }
+          const r = await fetch(`/api/jobs/${encodeURIComponent(String(jobId))}`);
+          if (r.ok) {
+            const job = await r.json() as { main_image?: string; options?: MannequinOptions; product?: any };
+            if (job?.main_image) {
+              found = {
+                id: jobId,
+                createdAt: Date.now(),
+                source: job.main_image,
+                results: [],
+                status: "draft",
+                meta: { options: (job.options || {}) as MannequinOptions, product: (job.product || { brand: "", model: "" }), descEnabled: false },
+              } as Item;
             }
           }
         } catch {}
@@ -223,15 +182,7 @@ export default function ResultatsPage() {
   }
 
   // If we have a jobId for this legacy item, also show a link to the new results page
-  const linkedJobId = useMemo(() => {
-    try {
-      const theId = decodeURIComponent(String(id || ""));
-      const raw = sessionStorage.getItem(`vintedboost_tmp_${theId}`);
-      if (!raw) return null;
-      const obj = JSON.parse(raw || '{}') as { jobId?: string };
-      return (obj as any)?.jobId || null;
-    } catch { return null; }
-  }, [id]);
+  const linkedJobId = useMemo(() => decodeURIComponent(String(id || "")) || null, [id]);
 
   async function runGeneration() {
     if (!item) return;
@@ -624,11 +575,7 @@ export default function ResultatsPage() {
           />
         ) : (
           <>
-            {linkedJobId ? (
-              <div className="mb-2 text-xs text-gray-600 dark:text-gray-300">
-                Nouvelle version disponible: <button className="text-brand-700 hover:underline" onClick={()=>router.push(`/resultats/job/${encodeURIComponent(String(linkedJobId))}`)}>voir la page Job</button>
-              </div>
-            ) : null}
+            {/* unified page: no alt job page link */}
             {showDebug && debugData ? (
               <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/60 p-3">
                 <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Entrées envoyées à Gemini</div>

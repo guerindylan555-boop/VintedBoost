@@ -287,9 +287,9 @@ export default function CreatePage() {
       }
       const jobId = (data as any)?.id as string | undefined;
       if (!jobId) throw new Error("Job id manquant");
-      // Persist job id for potential legacy redirect fallback
-      try { sessionStorage.setItem(`vintedboost_tmp_${id}`, JSON.stringify({ ...item, jobId })); } catch {}
-      router.push(`/resultats/${encodeURIComponent(String(id))}`);
+      // Persist snapshot under jobId for hydration on results
+      try { sessionStorage.setItem(`vintedboost_tmp_${jobId}`, JSON.stringify({ ...item, id: jobId, jobId })); } catch {}
+      router.push(`/resultats/${encodeURIComponent(String(jobId))}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

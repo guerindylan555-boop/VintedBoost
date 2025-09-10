@@ -11,13 +11,17 @@ import { normalizeImageDataUrl } from "@/lib/image";
 export const runtime = "nodejs";
 
 function getImageProvider() {
-  return (process.env.IMAGE_PROVIDER || "google").toLowerCase();
+  const forced = (process.env.IMAGE_PROVIDER || "").toLowerCase();
+  if (forced === "google" || forced === "openrouter") return forced;
+  // Auto-pick: prefer OpenRouter when available
+  return process.env.OPENROUTER_API_KEY ? "openrouter" : "google";
 }
 
 function getImageModel() {
   return (
     process.env.OPENROUTER_IMAGE_MODEL ||
-    "google/gemini-2.5-flash-image-preview"
+    // Use a widely-available image model by default
+    "fal-ai/flux-pro"
   );
 }
 
@@ -83,21 +87,34 @@ export async function POST(req: NextRequest) {
 
   function extractGoogleImageUrls(resp: unknown): string[] {
     const urls: string[] = [];
-    const parts = (
-      resp as { candidates?: Array<{ content?: { parts?: unknown[] } }> }
-    )?.candidates?.[0]?.content?.parts || [];
-    for (const p of parts as Array<Record<string, unknown>>) {
-      const d =
-        (p as { inlineData?: { data?: string; mimeType?: string } }).inlineData ||
-        (p as { inline_data?: { data?: string; mime_type?: string } }).inline_data;
-      const data = d?.data;
-      const mime =
-        (d as { mimeType?: string })?.mimeType ||
-        (d as { mime_type?: string })?.mime_type;
-      if (data && mime) {
-        urls.push(`data:${mime};base64,${data}`);
+    // Shape 1: Gemini generateContent style (inlineData)
+    try {
+      const parts = (
+        resp as { candidates?: Array<{ content?: { parts?: unknown[] } }> }
+      )?.candidates?.[0]?.content?.parts || [];
+      for (const p of parts as Array<Record<string, unknown>>) {
+        const d =
+          (p as { inlineData?: { data?: string; mimeType?: string } }).inlineData ||
+          (p as { inline_data?: { data?: string; mime_type?: string } }).inline_data;
+        const data = d?.data as string | undefined;
+        const mime =
+          (d as { mimeType?: string })?.mimeType ||
+          (d as { mime_type?: string })?.mime_type;
+        if (data && mime) {
+          urls.push(`data:${mime};base64,${data}`);
+        }
       }
-    }
+    } catch {}
+    // Shape 2: Image Generation API (generatedImages[].image.bytesBase64Encoded)
+    try {
+      const gen = (resp as { generatedImages?: Array<{ image?: { bytesBase64Encoded?: string; mimeType?: string } }> })
+        ?.generatedImages || [];
+      for (const it of gen) {
+        const b64 = it?.image?.bytesBase64Encoded as string | undefined;
+        const mime = (it?.image?.mimeType as string | undefined) || "image/png";
+        if (b64) urls.push(`data:${mime};base64,${b64}`);
+      }
+    } catch {}
     return Array.from(new Set(urls));
   }
 
@@ -157,14 +174,34 @@ export async function POST(req: NextRequest) {
         const urls = extractOpenRouterImageUrls(data);
         if (urls[0]) imagesOut.push(urls[0]);
       } else {
-        const parts = [
-          { text: instruction },
-          { inlineData: { mimeType, data: base64Data } },
-        ];
-        const payload = { contents: [{ role: "user", parts }] };
-        const data = await googleAiFetch(payload, { cache: "no-store" });
-        const urls = extractGoogleImageUrls(data);
-        if (urls[0]) imagesOut.push(urls[0]);
+        // Try Google first (Gemini or Image Generation), then fallback to OpenRouter if no image
+        {
+          const parts = [
+            { text: instruction },
+            { inlineData: { mimeType, data: base64Data } },
+          ];
+          const payload = { contents: [{ role: "user", parts }] };
+          try {
+            const data = await googleAiFetch(payload, { cache: "no-store" });
+            const urls = extractGoogleImageUrls(data);
+            if (urls[0]) imagesOut.push(urls[0]);
+          } catch (e) {
+            // Surface Google error below via fallback if needed
+          }
+        }
+        if (!imagesOut[i] && process.env.OPENROUTER_API_KEY) {
+          // Fallback: use OpenRouter with the same instruction
+          const messages: OpenRouterChatMessage[] = [
+            { role: "system", content: "Tu génères UNIQUEMENT une image correspondant aux instructions. Ne retourne pas de texte." },
+            { role: "user", content: [ { type: "text", text: instruction }, { type: "image_url", image_url: { url: safeImageDataUrl } } ] },
+          ];
+          const payload = { model: getImageModel(), messages, modalities: ["image"], max_output_tokens: 0 };
+          try {
+            const data = await openrouterFetch<OpenRouterChatCompletionResponse>(payload, { cache: "no-store" });
+            const urls = extractOpenRouterImageUrls(data);
+            if (urls[0]) imagesOut.push(urls[0]);
+          } catch {}
+        }
       }
     }
 

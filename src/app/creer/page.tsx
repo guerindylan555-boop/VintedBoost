@@ -277,6 +277,7 @@ export default function CreatePage() {
           options: normalizedOptions,
           product,
           poses: normalizedPoses,
+          clientItemId: id,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -286,6 +287,8 @@ export default function CreatePage() {
       }
       const jobId = (data as any)?.id as string | undefined;
       if (!jobId) throw new Error("Job id manquant");
+      // Persist job id for potential legacy redirect fallback
+      try { sessionStorage.setItem(`vintedboost_tmp_${id}`, JSON.stringify({ ...item, jobId })); } catch {}
       router.push(`/resultats/job/${encodeURIComponent(String(jobId))}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));

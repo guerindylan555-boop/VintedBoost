@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
     options?: Record<string, unknown> | null;
     product?: Record<string, unknown> | null;
     poses?: string[] | null;
+    clientItemId?: string | null;
   };
 
   const id = randomUUID();
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
   const poses = Array.isArray(body?.poses) ? body!.poses!.slice(0, 3) : null;
   const options = body?.options ?? null;
   const product = body?.product ?? null;
+  const clientItemId = (body?.clientItemId || "").toString().trim() || null;
 
   if (!body?.imageDataUrl || typeof body.imageDataUrl !== "string") {
     return NextResponse.json({ error: "Missing imageDataUrl" }, { status: 400 });
@@ -121,9 +123,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Insert job
+  const debugJson = clientItemId ? { clientItemId } : null;
   await query(
-    `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, status)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, 'created')`,
+    `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, status, debug)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, 'created', $10::jsonb)`,
     [
       id,
       session.user.id,
@@ -134,6 +137,7 @@ export async function POST(req: NextRequest) {
       poses && poses.length ? poses : null,
       mainImageDataUrl,
       envImageDataUrl,
+      debugJson == null ? null : JSON.stringify(debugJson),
     ]
   );
 

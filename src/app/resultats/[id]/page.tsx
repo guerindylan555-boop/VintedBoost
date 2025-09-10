@@ -179,16 +179,18 @@ export default function ResultatsPage() {
     }
   }
 
-  // Start generation automatically once when page loads and item is valid and not already with results
+  // Legacy page no longer used: redirect to job results if present
   useEffect(() => {
-    if (loadingItem) return;
-    if (!item || !item.source) return;
-    if (started || step !== "idle") return;
-    // Even if images already exist, we could still generate description separately later.
-    setStarted(true);
-    runGeneration();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingItem, item]);
+    try {
+      const theId = decodeURIComponent(String(id || ""));
+      const raw = sessionStorage.getItem(`vintedboost_tmp_${theId}`);
+      if (raw) {
+        const obj = JSON.parse(raw || '{}') as { id?: string };
+        const jobId = (obj as any)?.jobId as string | undefined;
+        if (jobId) router.replace(`/resultats/job/${encodeURIComponent(String(jobId))}`);
+      }
+    } catch {}
+  }, [id, router]);
 
   async function runGeneration() {
     if (!item) return;

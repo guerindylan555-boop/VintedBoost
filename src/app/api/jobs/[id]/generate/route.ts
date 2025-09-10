@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { randomUUID } from "crypto";
 import { openrouterFetch, OpenRouterChatMessage, OpenRouterChatCompletionResponse } from "@/lib/openrouter";
 import { googleAiFetch } from "@/lib/google-ai";
 import { buildInstructionForPose, buildInstructionForPoseWithProvidedBackground, type Pose } from "@/lib/prompt";
@@ -22,6 +23,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const id = String(params?.id || "");
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+  // Ensure auxiliary tables/columns
+  async function ensureResultsTable() {
+    await query(`
+      CREATE TABLE IF NOT EXISTS generation_results (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        pose TEXT NOT NULL,
+        image TEXT,
+        error TEXT,
+        instruction TEXT,
+        latency_ms INTEGER,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_generation_results_job ON generation_results(job_id);`);
+  }
+  await ensureResultsTable();
 
   // Load prepared job
   const { rows } = await query<{
@@ -45,6 +64,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const providerHeader = req.headers.get("x-image-provider");
   const provider = providerHeader === "openrouter" || providerHeader === "google" ? providerHeader : getImageProvider();
+
+  // Mark job as running and set provider/started_at
+  try {
+    await query(
+      `UPDATE generation_jobs SET status = 'running', provider = $2, started_at = NOW() WHERE id = $1 AND status IN ('created','queued')`,
+      [id, provider]
+    );
+  } catch {}
 
   const finalMode = (job.final_mode === "two" ? "two" : "one") as "one" | "two";
   const poses: Pose[] = (() => {
@@ -101,12 +128,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return Array.from(new Set(urls));
   }
 
-  const buildTask = (pose: Pose, idx: number) => {
+  const buildTask = async (pose: Pose, idx: number) => {
     const instruction = finalMode === "two"
       ? buildInstructionForPoseWithProvidedBackground(job.options || {}, pose, undefined, pose)
       : buildInstructionForPose(job.options || {}, pose, undefined, pose);
     instructionEchoes[idx] = instruction;
-
+    const started = Date.now();
     if (provider === "openrouter") {
       const messages: OpenRouterChatMessage[] = [
         { role: "system", content: "Tu génères UNIQUEMENT une image correspondant aux instructions. Ne retourne pas de texte." },
@@ -122,8 +149,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
       ];
       const payload = { model: getImageModel(), messages, modalities: ["image"], max_output_tokens: 0 };
-      return openrouterFetch<OpenRouterChatCompletionResponse>(payload, { cache: "no-store" })
-        .then((d) => extractOpenRouterImageUrls(d)[0] || null);
+      const d = await openrouterFetch<OpenRouterChatCompletionResponse>(payload, { cache: "no-store" });
+      const url = extractOpenRouterImageUrls(d)[0] || null;
+      const latency = Date.now() - started;
+      try {
+        await query(
+          `INSERT INTO generation_results (id, job_id, pose, image, error, instruction, latency_ms)
+           VALUES ($1, $2, $3, $4, NULL, $5, $6)`,
+          [randomUUID(), id, pose, url, instruction, latency]
+        );
+      } catch {}
+      return url;
     }
 
     // Google
@@ -149,8 +185,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
       ],
     } as Record<string, unknown>;
-    return googleAiFetch(payload, { cache: "no-store" })
-      .then((d) => extractGoogleImageUrls(d)[0] || null);
+    const d = await googleAiFetch(payload, { cache: "no-store" });
+    const url = extractGoogleImageUrls(d)[0] || null;
+    const latency = Date.now() - started;
+    try {
+      await query(
+        `INSERT INTO generation_results (id, job_id, pose, image, error, instruction, latency_ms)
+         VALUES ($1, $2, $3, $4, NULL, $5, $6)`,
+        [randomUUID(), id, pose, url, instruction, latency]
+      );
+    } catch {}
+    return url;
   };
 
   let settled: PromiseSettledResult<string | null>[] = [];
@@ -160,7 +205,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const v = await buildTask(poses[i], i);
         settled.push({ status: "fulfilled", value: v } as PromiseFulfilledResult<string | null>);
       } catch (e) {
+        const err = e instanceof Error ? e.message : String(e);
         settled.push({ status: "rejected", reason: e } as PromiseRejectedResult);
+        // Persist failure row
+        try {
+          await query(
+            `INSERT INTO generation_results (id, job_id, pose, image, error, instruction, latency_ms)
+             VALUES ($1, $2, $3, NULL, $4, $5, NULL)`,
+            [randomUUID(), id, poses[i], err, instructionEchoes[i] || ""]
+          );
+        } catch {}
       }
       await new Promise((r) => setTimeout(r, 150));
     }
@@ -177,14 +231,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Persist results
   const updatedDebug = { ...(job as any)?.debug || {}, mode: finalMode === "two" ? "two-images" : "one-image", instructions: instructionEchoes };
-  await query(
-    `UPDATE generation_jobs SET status = 'done', results = $2::jsonb, debug = $3::jsonb WHERE id = $1`,
-    [
-      id,
-      JSON.stringify({ images, poses, errorsByIndex }),
-      JSON.stringify(updatedDebug)
-    ]
-  );
+  try {
+    const anyOk = images.filter(Boolean).length > 0;
+    await query(
+      `UPDATE generation_jobs SET status = $2, results = $3::jsonb, debug = $4::jsonb, ended_at = NOW() WHERE id = $1`,
+      [
+        id,
+        anyOk ? 'done' : 'failed',
+        JSON.stringify({ images, poses, errorsByIndex }),
+        JSON.stringify(updatedDebug)
+      ]
+    );
+  } catch {}
 
   const out: any = { images, poses, instructions: instructionEchoes, debug: updatedDebug };
   return NextResponse.json(out, { status: 200 });

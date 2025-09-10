@@ -19,6 +19,7 @@ async function ensureJobsTable() {
       poses TEXT[],
       main_image TEXT NOT NULL,
       env_image TEXT,
+      person_image TEXT,
       status TEXT NOT NULL DEFAULT 'created',
       results JSONB,
       debug JSONB,
@@ -35,6 +36,7 @@ async function ensureJobsTable() {
   await query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ`);
   await query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS error TEXT`);
   await query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS client_item_id TEXT`);
+  await query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS person_image TEXT`);
   // Helpful indexes for performance
   await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_session_created ON generation_jobs(session_id, created_at DESC);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_status ON generation_jobs(status);`);
@@ -77,6 +79,7 @@ export async function POST(req: NextRequest) {
       requestedMode?: "one" | "two" | "auto";
       envRef?: { kind?: "chambre" | "salon" } | null;
       envImage?: string | null; // optional (data url or http url)
+      personImage?: string | null; // optional (data url or http url)
       options?: Record<string, unknown> | null;
       product?: Record<string, unknown> | null;
       poses?: string[] | null;
@@ -146,6 +149,20 @@ export async function POST(req: NextRequest) {
       envImageDataUrl = null;
     }
 
+  // Resolve optional person image
+    let personImageDataUrl: string | null = null;
+    try {
+      const fromBody = (body?.personImage && typeof body.personImage === "string") ? body.personImage : null;
+      if (fromBody) {
+        const coerced = await coerceToDataUrl(fromBody);
+        personImageDataUrl = await normalizeImageDataUrl(coerced);
+      } else {
+        // if not provided, try user default by gender from person_images? (skipped for now)
+      }
+    } catch {
+      personImageDataUrl = null;
+    }
+
   // Decide final mode
     let finalMode: "one" | "two";
     if (requestedMode === "two") {
@@ -162,8 +179,8 @@ export async function POST(req: NextRequest) {
   // Insert job
     const debugJson = clientItemId ? { clientItemId } : null;
     await query(
-      `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, status, debug, client_item_id)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, 'created', $10::jsonb, $11)`,
+      `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, person_image, status, debug, client_item_id)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, $10, 'created', $11::jsonb, $12)`,
       [
         id,
         session.user.id,
@@ -174,6 +191,7 @@ export async function POST(req: NextRequest) {
         poses && poses.length ? poses : null,
         mainImageDataUrl,
         envImageDataUrl,
+        personImageDataUrl,
         debugJson == null ? null : JSON.stringify(debugJson),
         clientItemId,
       ]

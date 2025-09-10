@@ -56,9 +56,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     poses: string[] | null;
     main_image: string;
     env_image: string | null;
+    person_image: string | null;
     debug: any | null;
   }>(
-    `SELECT session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, debug
+    `SELECT session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, person_image, debug
      FROM generation_jobs WHERE id = $1 LIMIT 1`,
     [id]
   );
@@ -146,6 +147,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           content: (() => {
             const parts: any[] = [];
             if (finalMode === "two" && job.env_image) parts.push({ type: "image_url", image_url: { url: job.env_image } });
+            if (job.person_image) parts.push({ type: "image_url", image_url: { url: job.person_image } });
             parts.push({ type: "image_url", image_url: { url: job.main_image } });
             parts.push({ type: "text", text: instruction });
             return parts;
@@ -176,6 +178,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (finalMode === "two" && job.env_image) {
       const a = toInline(job.env_image);
       if (a) parts.push({ inline_data: a });
+    }
+    if (job.person_image) {
+      const c = toInline(job.person_image);
+      if (c) parts.push({ inline_data: c });
     }
     const b = toInline(job.main_image);
     if (b) parts.push({ inline_data: b });

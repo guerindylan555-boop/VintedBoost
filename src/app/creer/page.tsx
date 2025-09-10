@@ -217,6 +217,8 @@ export default function CreatePage() {
     };
     upsertLocalHistory(item);
     persistServer(item);
+    // Temp handoff in case history write is slow or blocked
+    try { sessionStorage.setItem(`vintedboost_tmp_${id}`, JSON.stringify(item)); } catch {}
     setCurrentItemId(id);
     // Navigate to results page where generation happens with loading screen
     try { router.push(`/resultats/${encodeURIComponent(String(id))}`); } finally {

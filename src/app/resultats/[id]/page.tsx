@@ -85,6 +85,16 @@ export default function ResultatsPage() {
         }
       } catch {}
     }
+    // Fallback: sessionStorage temporary payload
+    if (!found) {
+      try {
+        const tmp = sessionStorage.getItem(`vintedboost_tmp_${theId}`);
+        if (tmp) {
+          const obj = JSON.parse(tmp) as Item;
+          if (obj && obj.source) found = obj;
+        }
+      } catch {}
+    }
     setItem(found);
     setLoadingItem(false);
     try {

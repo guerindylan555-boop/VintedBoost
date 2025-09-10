@@ -71,6 +71,7 @@ export default function ResultatsPage() {
   const [showDebug, setShowDebug] = useState(false);
   const [genInstructions, setGenInstructions] = useState<string[] | null>(null);
   const [genMode, setGenMode] = useState<"one-image" | "two-images" | null>(null);
+  const [genProvider, setGenProvider] = useState<string | null>(null);
   const [requestedPoses, setRequestedPoses] = useState<string[] | null>(null);
 
   // Load item (unified: id is the jobId)
@@ -91,15 +92,22 @@ export default function ResultatsPage() {
         try {
           const r = await fetch(`/api/jobs/${encodeURIComponent(String(jobId))}`);
           if (r.ok) {
-            const job = await r.json() as { main_image?: string; options?: MannequinOptions; product?: any };
+            const job = await r.json() as { main_image?: string; env_image?: string | null; options?: MannequinOptions; product?: any };
             if (job?.main_image) {
+              const background = (job?.options as any)?.background;
+              const envKindGuess = (background === 'salon' || background === 'chambre') ? background : 'chambre';
               found = {
                 id: jobId,
                 createdAt: Date.now(),
                 source: job.main_image,
                 results: [],
                 status: "draft",
-                meta: { options: (job.options || {}) as MannequinOptions, product: (job.product || { brand: "", model: "" }), descEnabled: false },
+                meta: {
+                  options: (job.options || {}) as MannequinOptions,
+                  product: (job.product || { brand: "", model: "" }),
+                  descEnabled: false,
+                  env: job.env_image ? { useDefault: true, kind: envKindGuess, image: job.env_image } : undefined,
+                },
               } as Item;
             }
           }
@@ -128,9 +136,7 @@ export default function ResultatsPage() {
       poses: Pose[];
       instructionsByPose: Array<{ pose: Pose; instruction: string }>;
     };
-    const provider = (() => {
-      try { return localStorage.getItem("imageProvider") || "google"; } catch { return "google"; }
-    })();
+    const provider = genProvider || (() => { try { return localStorage.getItem("imageProvider") || "google"; } catch { return "google"; } })();
     const envImageUrl = item?.meta?.env?.useDefault ? (item?.meta?.env?.image || null) : null;
     const mode: "one-image" | "two-images" = genMode || (envImageUrl ? "two-images" : "one-image");
     const opts = (item?.meta?.options || {}) as MannequinOptions;
@@ -259,7 +265,12 @@ export default function ResultatsPage() {
           setRequestedPoses(posesOrdered);
           setGenErrors(errorsByPose);
           try { const instr = Array.isArray(json?.instructions) ? (json.instructions as string[]) : null; setGenInstructions(instr); } catch {}
-          try { const dbg = (json as any)?.debug?.mode; if (dbg === 'one-image' || dbg === 'two-images') setGenMode(dbg); } catch {}
+          try {
+            const dbg = (json as any)?.debug?.mode;
+            if (dbg === 'one-image' || dbg === 'two-images') setGenMode(dbg);
+            const p = (json as any)?.debug?.provider;
+            if (typeof p === 'string') setGenProvider(p);
+          } catch {}
           return imagesAll.filter((u): u is string => typeof u === 'string' && !!u);
         }
         // Legacy fallback (should be rare)

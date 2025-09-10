@@ -246,6 +246,38 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         JSON.stringify(updatedDebug)
       ]
     );
+    // Also upsert into history_items so Mes annonces can display without re-generation
+    try {
+      // Ensure table exists
+      await query(
+        `CREATE TABLE IF NOT EXISTS history_items (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          source_image TEXT NOT NULL,
+          results JSONB NOT NULL
+        );`
+      );
+      await query(
+        `ALTER TABLE history_items
+         ADD COLUMN IF NOT EXISTS description JSONB`
+      );
+      // Preserve existing description if any
+      const existing = await query<{ description: any }>(
+        `SELECT description FROM history_items WHERE id = $1 AND session_id = $2 LIMIT 1`,
+        [id, session.user.id]
+      );
+      const description = existing.rows?.[0]?.description ?? null;
+      await query(
+        `INSERT INTO history_items (id, session_id, created_at, source_image, results, description)
+         VALUES ($1, $2, NOW(), $3, $4::jsonb, $5::jsonb)
+         ON CONFLICT (id) DO UPDATE SET
+           source_image = EXCLUDED.source_image,
+           results = EXCLUDED.results,
+           description = COALESCE(history_items.description, EXCLUDED.description)`,
+        [id, session.user.id, job.main_image, JSON.stringify(images.filter(Boolean)), description == null ? null : JSON.stringify(description)]
+      );
+    } catch {}
   } catch {}
 
   const out: any = { images, poses, instructions: instructionEchoes, debug: updatedDebug };

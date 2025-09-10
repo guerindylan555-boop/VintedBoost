@@ -41,50 +41,68 @@ export default function AnnonceDetailPage() {
   useEffect(() => {
     const theId = decodeURIComponent(String(id || ""));
     if (!theId) { setLoading(false); return; }
+    (async () => {
+      // 1) Prefer jobs table (unified flow): show final state without retriggering
+      try {
+        const r = await fetchWithTimeout(`/api/jobs/${encodeURIComponent(theId)}`);
+        if (r.ok) {
+          const job = await r.json();
+          const images = Array.isArray(job?.results?.images) ? (job.results.images as Array<string | null | undefined>).filter(Boolean) as string[] : [];
+          const normalized: Item = {
+            id: String(job.id || theId),
+            createdAt: job.createdAt ?? Date.now(),
+            source: String(job.main_image || ""),
+            results: images,
+            description: null,
+            title: undefined,
+            status: job.status === 'done' ? 'final' : 'draft',
+          };
+          setItem(normalized);
+          setLoading(false);
+          return;
+        }
+      } catch {}
 
-    // 1) Try localStorage history
-    try {
-      const raw = localStorage.getItem("vintedboost_history");
-      if (raw) {
-        const hist = JSON.parse(raw) as Item[];
-        const found = Array.isArray(hist) ? hist.find((x) => String(x.id) === theId) : null;
-        if (found) setItem(found);
-    }
-  } catch {}
+      // 2) Fallback: history item
+      try {
+        const res = await fetchWithTimeout(`/api/history/${encodeURIComponent(theId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.id) {
+            const normalized: Item = {
+              id: String(data.id),
+              createdAt: data.createdAt ?? Date.now(),
+              source: String(data.source ?? ""),
+              results: Array.isArray(data.results) ? (data.results as string[]) : [],
+              description: (data.description as Record<string, unknown> | null) ?? null,
+              title: typeof data?.description?.title === "string" ? (data.description.title as string) : undefined,
+            };
+            setItem(normalized);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {}
 
-    // 2) Try last
-    try {
-      if (!item) {
+      // 3) Local storage (last resort)
+      try {
+        const raw = localStorage.getItem("vintedboost_history");
+        if (raw) {
+          const hist = JSON.parse(raw) as Item[];
+          const found = Array.isArray(hist) ? hist.find((x) => String(x.id) === theId) : null;
+          if (found) { setItem(found); setLoading(false); return; }
+        }
+      } catch {}
+      try {
         const lastRaw = localStorage.getItem("vintedboost_last");
         if (lastRaw) {
           const last = JSON.parse(lastRaw) as Item;
-          if (last && String(last.id) === theId) setItem(last);
-        }
-      }
-    } catch {}
-
-    setLoading(false);
-
-    // 3) Best-effort server fetch (will overwrite if found)
-    (async () => {
-      try {
-        const res = await fetchWithTimeout(`/api/history/${encodeURIComponent(theId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data && data.id) {
-          const normalized: Item = {
-            id: String(data.id),
-            createdAt: data.createdAt ?? Date.now(),
-            source: String(data.source ?? ""),
-            results: Array.isArray(data.results) ? (data.results as string[]) : [],
-            description: (data.description as Record<string, unknown> | null) ?? null,
-            title: typeof data?.description?.title === "string" ? (data.description.title as string) : undefined,
-          };
-          setItem(normalized);
+          if (last && String(last.id) === theId) { setItem(last); setLoading(false); return; }
         }
       } catch {}
+
+      setLoading(false);
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Hydrate editable fields when item changes

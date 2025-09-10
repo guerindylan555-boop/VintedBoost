@@ -69,114 +69,119 @@ async function coerceToDataUrl(input: string): Promise<string> {
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  await ensureJobsTable();
+  try {
+    await ensureJobsTable();
 
-  const body = (await req.json().catch(() => ({}))) as {
-    imageDataUrl?: string | null; // required
-    requestedMode?: "one" | "two" | "auto";
-    envRef?: { kind?: "chambre" | "salon" } | null;
-    envImage?: string | null; // optional (data url or http url)
-    options?: Record<string, unknown> | null;
-    product?: Record<string, unknown> | null;
-    poses?: string[] | null;
-    clientItemId?: string | null;
-  };
+    const body = (await req.json().catch(() => ({}))) as {
+      imageDataUrl?: string | null; // required
+      requestedMode?: "one" | "two" | "auto";
+      envRef?: { kind?: "chambre" | "salon" } | null;
+      envImage?: string | null; // optional (data url or http url)
+      options?: Record<string, unknown> | null;
+      product?: Record<string, unknown> | null;
+      poses?: string[] | null;
+      clientItemId?: string | null;
+    };
 
-  const id = randomUUID();
-  const requestedMode = (body?.requestedMode || "auto") as "one" | "two" | "auto";
-  const poses = Array.isArray(body?.poses) ? body!.poses!.slice(0, 3) : null;
-  const options = body?.options ?? null;
-  const product = body?.product ?? null;
-  const clientItemId = (body?.clientItemId || "").toString().trim() || null;
+    const id = randomUUID();
+    const requestedMode = (body?.requestedMode || "auto") as "one" | "two" | "auto";
+    const poses = Array.isArray(body?.poses) ? body!.poses!.slice(0, 3) : null;
+    const options = body?.options ?? null;
+    const product = body?.product ?? null;
+    const clientItemId = (body?.clientItemId || "").toString().trim() || null;
 
   // Idempotency via (session_id, client_item_id)
-  if (clientItemId) {
-    try {
-      const existing = await query<{ id: string; final_mode: string | null }>(
-        `SELECT id, final_mode FROM generation_jobs WHERE session_id = $1 AND client_item_id = $2 ORDER BY created_at DESC LIMIT 1`,
-        [session.user.id, clientItemId]
-      );
-      const found = existing.rows?.[0];
-      if (found) {
-        return NextResponse.json({ id: found.id, requestedMode, finalMode: (found.final_mode === 'two' ? 'two' : found.final_mode === 'one' ? 'one' : null) }, { status: 200 });
-      }
-    } catch {}
-  }
+    if (clientItemId) {
+      try {
+        const existing = await query<{ id: string; final_mode: string | null }>(
+          `SELECT id, final_mode FROM generation_jobs WHERE session_id = $1 AND client_item_id = $2 ORDER BY created_at DESC LIMIT 1`,
+          [session.user.id, clientItemId]
+        );
+        const found = existing.rows?.[0];
+        if (found) {
+          return NextResponse.json({ id: found.id, requestedMode, finalMode: (found.final_mode === 'two' ? 'two' : found.final_mode === 'one' ? 'one' : null) }, { status: 200 });
+        }
+      } catch {}
+    }
 
-  if (!body?.imageDataUrl || typeof body.imageDataUrl !== "string") {
-    return NextResponse.json({ error: "Missing imageDataUrl" }, { status: 400 });
-  }
+    if (!body?.imageDataUrl || typeof body.imageDataUrl !== "string") {
+      return NextResponse.json({ error: "Missing imageDataUrl" }, { status: 400 });
+    }
 
   // Prepare main image
-  let mainImageDataUrl: string;
-  try {
-    const coerced = await coerceToDataUrl(body.imageDataUrl);
-    mainImageDataUrl = await normalizeImageDataUrl(coerced);
-  } catch (e) {
-    return NextResponse.json({ error: "Invalid main image" }, { status: 400 });
-  }
+    let mainImageDataUrl: string;
+    try {
+      const coerced = await coerceToDataUrl(body.imageDataUrl);
+      mainImageDataUrl = await normalizeImageDataUrl(coerced);
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid main image" }, { status: 400 });
+    }
 
   // Resolve environment image: envRef (default) or envImage
-  let envImageDataUrl: string | null = null;
-  try {
-    const fromBody = (body?.envImage && typeof body.envImage === "string") ? body.envImage : null;
-    if (fromBody) {
-      const coerced = await coerceToDataUrl(fromBody);
-      envImageDataUrl = await normalizeImageDataUrl(coerced);
-    } else if (body?.envRef?.kind) {
-      // Load default environment for this session and kind
-      const kind = body.envRef.kind;
-      const kindLower = String(kind).toLowerCase();
-      const filterSql = kindLower === 'chambre'
-        ? `AND (LOWER(kind) = LOWER($2) OR LOWER(kind) = 'bedroom')`
-        : `AND LOWER(kind) = LOWER($2)`;
-      const { rows } = await query<{ image: string | null }>(
-        `SELECT image FROM environment_images WHERE session_id = $1 AND is_default = TRUE ${filterSql} LIMIT 1`,
-        [session.user.id, kind]
-      );
-      const img = rows?.[0]?.image || null;
-      if (img) {
-        const coerced = await coerceToDataUrl(img);
+    let envImageDataUrl: string | null = null;
+    try {
+      const fromBody = (body?.envImage && typeof body.envImage === "string") ? body.envImage : null;
+      if (fromBody) {
+        const coerced = await coerceToDataUrl(fromBody);
         envImageDataUrl = await normalizeImageDataUrl(coerced);
+      } else if (body?.envRef?.kind) {
+        // Load default environment for this session and kind
+        const kind = body.envRef.kind;
+        const kindLower = String(kind).toLowerCase();
+        const filterSql = kindLower === 'chambre'
+          ? `AND (LOWER(kind) = LOWER($2) OR LOWER(kind) = 'bedroom')`
+          : `AND LOWER(kind) = LOWER($2)`;
+        const { rows } = await query<{ image: string | null }>(
+          `SELECT image FROM environment_images WHERE session_id = $1 AND is_default = TRUE ${filterSql} LIMIT 1`,
+          [session.user.id, kind]
+        );
+        const img = rows?.[0]?.image || null;
+        if (img) {
+          const coerced = await coerceToDataUrl(img);
+          envImageDataUrl = await normalizeImageDataUrl(coerced);
+        }
       }
+    } catch {
+      // ignore, will determine mode below
+      envImageDataUrl = null;
     }
-  } catch {
-    // ignore, will determine mode below
-    envImageDataUrl = null;
-  }
 
   // Decide final mode
-  let finalMode: "one" | "two";
-  if (requestedMode === "two") {
-    if (!envImageDataUrl) {
-      return NextResponse.json({ error: "Requested two-image mode but no environment image is available" }, { status: 409 });
+    let finalMode: "one" | "two";
+    if (requestedMode === "two") {
+      if (!envImageDataUrl) {
+        return NextResponse.json({ error: "Mode 2 images demandé mais aucun environnement par défaut n'est disponible" }, { status: 409 });
+      }
+      finalMode = "two";
+    } else if (requestedMode === "one") {
+      finalMode = "one";
+    } else {
+      finalMode = envImageDataUrl ? "two" : "one";
     }
-    finalMode = "two";
-  } else if (requestedMode === "one") {
-    finalMode = "one";
-  } else {
-    finalMode = envImageDataUrl ? "two" : "one";
-  }
 
   // Insert job
-  const debugJson = clientItemId ? { clientItemId } : null;
-  await query(
-    `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, status, debug, client_item_id)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, 'created', $10::jsonb, $11)`,
-    [
-      id,
-      session.user.id,
-      requestedMode,
-      finalMode,
-      options == null ? null : JSON.stringify(options),
-      product == null ? null : JSON.stringify(product),
-      poses && poses.length ? poses : null,
-      mainImageDataUrl,
-      envImageDataUrl,
-      debugJson == null ? null : JSON.stringify(debugJson),
-      clientItemId,
-    ]
-  );
+    const debugJson = clientItemId ? { clientItemId } : null;
+    await query(
+      `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, status, debug, client_item_id)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, 'created', $10::jsonb, $11)`,
+      [
+        id,
+        session.user.id,
+        requestedMode,
+        finalMode,
+        options == null ? null : JSON.stringify(options),
+        product == null ? null : JSON.stringify(product),
+        poses && poses.length ? poses : null,
+        mainImageDataUrl,
+        envImageDataUrl,
+        debugJson == null ? null : JSON.stringify(debugJson),
+        clientItemId,
+      ]
+    );
 
-  return NextResponse.json({ id, requestedMode, finalMode, hasEnv: Boolean(envImageDataUrl) }, { status: 201 });
+    return NextResponse.json({ id, requestedMode, finalMode, hasEnv: Boolean(envImageDataUrl) }, { status: 201 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

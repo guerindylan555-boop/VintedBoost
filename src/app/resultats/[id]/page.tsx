@@ -213,12 +213,43 @@ export default function ResultatsPage() {
       const sharedHeaders: Record<string, string> = { "Content-Type": "application/json" };
       if (provider) sharedHeaders["X-Image-Provider"] = provider;
 
+      // Resolve environment image just-in-time to avoid missing image due to stale history
+      let envImageForRequest: string | null = null;
+      let envKindForRequest: "chambre" | "salon" | null = null;
+      try {
+        const useDefault = Boolean(item.meta?.env?.useDefault);
+        envKindForRequest = (item.meta?.env?.kind === "salon" || item.meta?.env?.kind === "chambre") ? item.meta?.env?.kind : null;
+        const existing = (useDefault ? (item.meta?.env?.image || null) : null) || null;
+        if (useDefault) {
+          if (existing) {
+            envImageForRequest = existing;
+          } else if (envKindForRequest) {
+            // Fetch default env for the selected kind
+            try {
+              const res = await fetch(`/api/environments?kind=${encodeURIComponent(envKindForRequest)}`, { cache: "no-store" });
+              if (res.ok) {
+                const data = await res.json();
+                const items = Array.isArray((data as any)?.items) ? ((data as any).items as Array<{ id: string; kind: string; image: string; isDefault?: boolean }>) : [];
+                const def = items.find((x) => x.isDefault);
+                if (def?.image) {
+                  envImageForRequest = def.image;
+                  // Update local item so future retries reuse it
+                  const newer: Item = { ...item, meta: { ...(item.meta || {}), env: { useDefault: true, kind: envKindForRequest, image: def.image } } };
+                  setItem(newer);
+                  upsertLocalHistory(newer);
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+
       const imagesReq = fetch("/api/generate-images", {
         method: "POST",
         headers: sharedHeaders,
         body: JSON.stringify({
           imageDataUrl: item.source,
-          environmentImageDataUrl: item.meta?.env?.useDefault ? (item.meta?.env?.image || null) : null,
+          environmentImageDataUrl: envImageForRequest,
           options: item.meta?.options,
           poses: item.meta?.options?.poses,
         }),

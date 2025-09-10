@@ -178,6 +178,8 @@ export async function POST(req: NextRequest) {
   }
 
   const instructionEchoes: string[] = [];
+  // Decide final mode strictly on presence of a valid env image data URL
+  const isTwoImagesMode = Boolean(safeEnvImageDataUrl);
   const providerHeader = req.headers.get("x-image-provider");
   const provider =
     providerHeader === "openrouter" || providerHeader === "google"
@@ -204,7 +206,7 @@ export async function POST(req: NextRequest) {
   try {
     const buildTask = (pose: Pose, idx: number) => {
       const variantLabel = pose;
-      const instruction = safeEnvImageDataUrl
+      const instruction = isTwoImagesMode
         ? buildInstructionForPoseWithProvidedBackground(options || {}, pose, productReference, variantLabel)
         : buildInstructionForPose(options || {}, pose, productReference, variantLabel);
       instructionEchoes[idx] = instruction;
@@ -246,7 +248,7 @@ export async function POST(req: NextRequest) {
         // Google path: prefer Google always unless user explicitly switches provider
         // Send environment image first (Image 1), then clothing image (Image 2), then text
         const parts: Array<Record<string, unknown>> = [];
-        if (safeEnvImageDataUrl && envMimeType && envBase64Data) {
+        if (isTwoImagesMode && safeEnvImageDataUrl && envMimeType && envBase64Data) {
           parts.push({ inline_data: { mime_type: envMimeType, data: envBase64Data } });
         }
         parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
@@ -279,7 +281,7 @@ export async function POST(req: NextRequest) {
 
     // For two-image mode, throttle to reduce policy refusals
     let settled: PromiseSettledResult<string | null>[];
-    if (safeEnvImageDataUrl) {
+    if (isTwoImagesMode) {
       settled = [];
       for (let i = 0; i < requestedPoses.length; i++) {
         try {
@@ -338,7 +340,7 @@ export async function POST(req: NextRequest) {
     try {
       if (process.env.NODE_ENV !== "production") {
         payload.instructions = instructionEchoes;
-        payload.debug = { mode: safeEnvImageDataUrl ? "two-images" : "one-image", imagesCountSent: safeEnvImageDataUrl ? 2 : 1 };
+        payload.debug = { mode: isTwoImagesMode ? "two-images" : "one-image", imagesCountSent: isTwoImagesMode ? 2 : 1 };
       }
     } catch {}
     return NextResponse.json(payload, { status: 200 });

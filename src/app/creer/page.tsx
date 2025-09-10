@@ -114,6 +114,26 @@ export default function CreatePage() {
     [imageDataUrl, generating]
   );
 
+  // Restore persisted image/id across refresh within the same tab
+  useEffect(() => {
+    try {
+      const savedImage = sessionStorage.getItem("vintedboost_create_image");
+      if (savedImage) setImageDataUrl(savedImage);
+      const savedId = sessionStorage.getItem("vintedboost_create_item_id");
+      if (savedId) setCurrentItemId(savedId);
+    } catch {}
+  }, []);
+
+  // Persist current image/id so it survives refreshes until user generates or resets
+  useEffect(() => {
+    try {
+      if (imageDataUrl) sessionStorage.setItem("vintedboost_create_image", imageDataUrl);
+      else sessionStorage.removeItem("vintedboost_create_image");
+      if (currentItemId) sessionStorage.setItem("vintedboost_create_item_id", currentItemId);
+      else sessionStorage.removeItem("vintedboost_create_item_id");
+    } catch {}
+  }, [imageDataUrl, currentItemId]);
+
   const promptPreview = useMemo(() => {
     const selected = (options.poses && options.poses.length > 0)
       ? options.poses[0]
@@ -167,13 +187,22 @@ export default function CreatePage() {
         setOutImages([]);
         setEditCollapsed(false);
         // Only create a local working id; do not persist draft until user saves or generation completes
-        setCurrentItemId((curr) => curr || newId());
+        setCurrentItemId((curr) => {
+          const id = curr || newId();
+          try {
+            sessionStorage.setItem("vintedboost_create_image", dataUrl);
+            sessionStorage.setItem("vintedboost_create_item_id", id);
+          } catch {}
+          return id;
+        });
       })
       .catch(() => setError("Impossible de lire l'image"));
   }
 
   async function generate() {
     if (!imageDataUrl) return;
+    // Clear persisted image/id once user starts generation
+    try { sessionStorage.removeItem("vintedboost_create_image"); sessionStorage.removeItem("vintedboost_create_item_id"); } catch {}
     // Resolve environment image synchronously to avoid race with React state
     let selectedEnv: { id: string; image: string } | null = null;
     if (useDefaultEnv) {
@@ -472,6 +501,7 @@ export default function CreatePage() {
                     setOutImages([]);
                     setError(null);
                     setCurrentItemId(null);
+                    try { sessionStorage.removeItem("vintedboost_create_image"); sessionStorage.removeItem("vintedboost_create_item_id"); } catch {}
                   }}
                   aria-label="Réinitialiser"
                   title="Réinitialiser"

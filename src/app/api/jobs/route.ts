@@ -29,18 +29,16 @@ async function ensureJobsTable() {
       client_item_id TEXT
     );
   `);
+  // Backfill new columns if table already existed
+  await query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS provider TEXT`);
+  await query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ`);
+  await query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ`);
+  await query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS error TEXT`);
+  await query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS client_item_id TEXT`);
   // Helpful indexes for performance
   await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_session_created ON generation_jobs(session_id, created_at DESC);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_status ON generation_jobs(status);`);
-  await query(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'generation_jobs_client_item_unique'
-      ) THEN
-        EXECUTE 'CREATE UNIQUE INDEX generation_jobs_client_item_unique ON generation_jobs(session_id, client_item_id) WHERE client_item_id IS NOT NULL';
-      END IF;
-    END$$;`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_client_item ON generation_jobs(session_id, client_item_id)`);
 }
 
 function isHttpUrl(str: string): boolean {

@@ -13,8 +13,8 @@ export const runtime = "nodejs";
 function getImageProvider() {
   const forced = (process.env.IMAGE_PROVIDER || "").toLowerCase();
   if (forced === "google" || forced === "openrouter") return forced;
-  // Auto-pick: prefer OpenRouter when available
-  return process.env.OPENROUTER_API_KEY ? "openrouter" : "google";
+  // Default to Google unless user explicitly selects OpenRouter
+  return "google";
 }
 
 function getImageModel() {
@@ -174,33 +174,40 @@ export async function POST(req: NextRequest) {
         const urls = extractOpenRouterImageUrls(data);
         if (urls[0]) imagesOut.push(urls[0]);
       } else {
-        // Try Google first (Gemini or Image Generation), then fallback to OpenRouter if no image
+        // Google path: prefer Google always unless user explicitly switches provider
         {
           const parts = [
             { text: instruction },
             { inlineData: { mimeType, data: base64Data } },
           ];
-          const payload = { contents: [{ role: "user", parts }] };
+          const payload = {
+            contents: [{ role: "user", parts }],
+            // Relax safety for clothing/mannequin edits which can be misclassified
+            safetySettings: [
+              { category: "HARM_CATEGORY_SEXUAL", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+              { category: "HARM_CATEGORY_VIOLENCE", threshold: "BLOCK_ONLY_HIGH" },
+            ],
+          };
           try {
             const data = await googleAiFetch(payload, { cache: "no-store" });
             const urls = extractGoogleImageUrls(data);
             if (urls[0]) imagesOut.push(urls[0]);
+            // If still no image but we received text, surface it as an error hint
+            if (!imagesOut[i]) {
+              try {
+                const firstText = ((data as any)?.candidates?.[0]?.content?.parts || [])
+                  .map((p: any) => p?.text)
+                  .filter((t: any) => typeof t === "string")[0];
+                if (firstText) {
+                  throw new Error(String(firstText).slice(0, 280));
+                }
+              } catch {}
+            }
           } catch (e) {
-            // Surface Google error below via fallback if needed
+            // If Google fails hard, we propagate the error after the loop
+            throw e;
           }
-        }
-        if (!imagesOut[i] && process.env.OPENROUTER_API_KEY) {
-          // Fallback: use OpenRouter with the same instruction
-          const messages: OpenRouterChatMessage[] = [
-            { role: "system", content: "Tu génères UNIQUEMENT une image correspondant aux instructions. Ne retourne pas de texte." },
-            { role: "user", content: [ { type: "text", text: instruction }, { type: "image_url", image_url: { url: safeImageDataUrl } } ] },
-          ];
-          const payload = { model: getImageModel(), messages, modalities: ["image"], max_output_tokens: 0 };
-          try {
-            const data = await openrouterFetch<OpenRouterChatCompletionResponse>(payload, { cache: "no-store" });
-            const urls = extractOpenRouterImageUrls(data);
-            if (urls[0]) imagesOut.push(urls[0]);
-          } catch {}
         }
       }
     }

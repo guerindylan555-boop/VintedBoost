@@ -41,6 +41,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     await query(`CREATE INDEX IF NOT EXISTS idx_generation_results_job ON generation_results(job_id);`);
   }
   await ensureResultsTable();
+  // If job is still in 'created', flip to 'queued' early for consistency
+  try {
+    await query(`UPDATE generation_jobs SET status = CASE WHEN status = 'created' THEN 'queued' ELSE status END WHERE id = $1`, [params.id]);
+  } catch {}
 
   // Load prepared job
   const { rows } = await query<{

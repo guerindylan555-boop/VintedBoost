@@ -18,6 +18,11 @@ async function ensureTable() {
       is_default BOOLEAN NOT NULL DEFAULT FALSE
     );`
   );
+  // Backfill: ensure legacy tables have the new column
+  await query(
+    `ALTER TABLE environment_images
+     ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE`
+  );
   // Unique default per (session, kind)
   await query(
     `DO $$

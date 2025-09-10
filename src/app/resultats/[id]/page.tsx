@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 import { useParams, useRouter } from "next/navigation";
 import LoadingScreen from "@/components/LoadingScreen";
 import ResultsGallery from "@/components/ResultsGallery";
 import DescriptionPanel from "@/components/DescriptionPanel";
-import type { MannequinOptions } from "@/lib/prompt";
+import Toggle from "@/components/Toggle";
+import Image from "next/image";
+import { buildInstructionForPose, buildInstructionForPoseWithProvidedBackground, type Pose, type MannequinOptions } from "@/lib/prompt";
 
 type Item = {
   id: string;
@@ -65,6 +67,11 @@ export default function ResultatsPage() {
   const [descText, setDescText] = useState("");
   const [genPoses, setGenPoses] = useState<string[] | null>(null);
   const [genErrors, setGenErrors] = useState<Record<string, string> | null>(null);
+  // Debug view toggle and captured request details
+  const [showDebug, setShowDebug] = useState(false);
+  const [genInstructions, setGenInstructions] = useState<string[] | null>(null);
+  const [genMode, setGenMode] = useState<"one-image" | "two-images" | null>(null);
+  const [requestedPoses, setRequestedPoses] = useState<string[] | null>(null);
 
   // Load item
   useEffect(() => {
@@ -109,6 +116,54 @@ export default function ResultatsPage() {
   }, [id]);
 
   const descEnabled = Boolean(item?.meta?.descEnabled);
+
+  const debugData = useMemo(() => {
+    if (!item || !item.source) return null as null | {
+      provider: string;
+      mode: "one-image" | "two-images";
+      envImageUrl: string | null;
+      mainImageUrl: string;
+      poses: Pose[];
+      instructionsByPose: Array<{ pose: Pose; instruction: string }>;
+    };
+    const provider = (() => {
+      try { return localStorage.getItem("imageProvider") || "google"; } catch { return "google"; }
+    })();
+    const envImageUrl = item?.meta?.env?.useDefault ? (item?.meta?.env?.image || null) : null;
+    const mode: "one-image" | "two-images" = genMode || (envImageUrl ? "two-images" : "one-image");
+    const opts = (item?.meta?.options || {}) as MannequinOptions;
+    const poses: Pose[] = (() => {
+      const allowed: Pose[] = ["face", "trois-quarts", "profil"];
+      const fromRequested = Array.isArray(requestedPoses) ? requestedPoses.filter((p): p is Pose => allowed.includes(p as Pose)) : [];
+      if (fromRequested.length > 0) return fromRequested as Pose[];
+      const fromGen = Array.isArray(genPoses) ? genPoses.filter((p): p is Pose => allowed.includes(p as Pose)) : [];
+      if (fromGen.length > 0) return fromGen as Pose[];
+      const fromOptions = Array.isArray(opts?.poses) ? opts.poses.filter((p): p is Pose => allowed.includes(p as Pose)) : [];
+      if (fromOptions.length > 0) return fromOptions as Pose[];
+      const single = (opts?.pose || "face") as Pose;
+      return [allowed.includes(single) ? single : "face"];
+    })();
+    let instructionsByPose: Array<{ pose: Pose; instruction: string }> = [];
+    if (Array.isArray(genInstructions) && genInstructions.length > 0) {
+      instructionsByPose = poses.map((p, idx) => ({ pose: p, instruction: genInstructions[idx] || "" })).filter((x) => Boolean(x.instruction));
+    }
+    if (instructionsByPose.length === 0) {
+      instructionsByPose = poses.map((p) => ({
+        pose: p,
+        instruction: envImageUrl
+          ? buildInstructionForPoseWithProvidedBackground(opts, p, undefined, p)
+          : buildInstructionForPose(opts, p, undefined, p),
+      }));
+    }
+    return {
+      provider,
+      mode,
+      envImageUrl,
+      mainImageUrl: item.source,
+      poses,
+      instructionsByPose,
+    };
+  }, [item, genPoses, genMode, genInstructions, requestedPoses]);
 
   // Safe JSON reader: falls back to text for non-JSON errors (e.g., 502 Bad Gateway)
   async function readJsonOrText(res: Response): Promise<unknown> {
@@ -186,7 +241,17 @@ export default function ResultatsPage() {
           const errorsByPose = (json && typeof json === 'object' ? (json as any).errors as Record<string, string> : null) || null;
           const posesForSuccess = posesOrdered ? imagesAll.map((img, i) => (img ? posesOrdered[i] : null)).filter(Boolean) as string[] : null;
           setGenPoses(posesForSuccess);
+          setRequestedPoses(posesOrdered);
           setGenErrors(errorsByPose);
+          // Capture server-side instructions and debug mode (available in non-production only)
+          try {
+            const instr = Array.isArray((json as any)?.instructions) ? ((json as any).instructions as string[]) : null;
+            setGenInstructions(instr);
+          } catch {}
+          try {
+            const dbg = (json as any)?.debug?.mode;
+            if (dbg === 'one-image' || dbg === 'two-images') setGenMode(dbg);
+          } catch {}
           const images = imagesAll.filter((u): u is string => typeof u === 'string' && !!u);
           // Dev: echo instructions to console to help debug prompts
           try {
@@ -401,6 +466,10 @@ export default function ResultatsPage() {
       <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h1 className="text-base font-semibold uppercase tracking-wide">Résultat</h1>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-gray-500">Debug Gemini</span>
+            <Toggle checked={showDebug} onChange={setShowDebug} ariaLabel="Afficher les entrées envoyées à Gemini" />
+          </div>
         </div>
         {/* Titre: afficher uniquement hors chargement/erreur */}
         {!showLoading && step !== "error" ? (
@@ -470,6 +539,46 @@ export default function ResultatsPage() {
           />
         ) : (
           <>
+            {showDebug && debugData ? (
+              <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/60 p-3">
+                <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Entrées envoyées à Gemini</div>
+                <div className="mb-2 text-xs text-gray-600 dark:text-gray-300">Mode: <span className="font-medium">{debugData.mode}</span> · Provider: <span className="font-medium">{debugData.provider}</span></div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {debugData.mode === "two-images" ? (
+                    <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                      <div className="px-2 py-1 text-[11px] bg-gray-50 dark:bg-gray-800">Image 1 — Arrière‑plan</div>
+                      <div className="relative h-40 bg-gray-50 dark:bg-gray-900">
+                        {debugData.envImageUrl ? (
+                          <Image src={debugData.envImageUrl} alt="Arrière‑plan envoyé" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover" unoptimized />
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="px-2 py-1 text-[11px] bg-gray-50 dark:bg-gray-800">{debugData.mode === "two-images" ? "Image 2" : "Image"} — Vêtement</div>
+                    <div className="relative h-40 bg-gray-50 dark:bg-gray-900">
+                      <Image src={debugData.mainImageUrl} alt="Vêtement envoyé" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-contain" unoptimized />
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-3">
+                  {debugData.instructionsByPose.map((it) => (
+                    <div key={it.pose} className="rounded-md border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between px-2 py-1 bg-gray-50 dark:bg-gray-800">
+                        <div className="text-[11px] uppercase">Pose: <span className="font-medium">{it.pose}</span></div>
+                        {/* Copy button */}
+                        <button
+                          type="button"
+                          onClick={() => { try { navigator.clipboard.writeText(it.instruction); } catch {} }}
+                          className="text-[11px] text-brand-700 hover:underline"
+                        >Copier</button>
+                      </div>
+                      <textarea readOnly value={it.instruction} className="w-full min-h-24 resize-y bg-white dark:bg-gray-900 px-2 py-1 text-[12px] text-gray-700 dark:text-gray-200" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {error && step === "done" ? (
               <div className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">{error}</div>
             ) : null}

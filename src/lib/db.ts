@@ -4,7 +4,6 @@ import { Pool } from "pg";
 const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __sharedPgPool__: Pool | undefined;
 }
 
@@ -16,10 +15,15 @@ if (!global.__sharedPgPool__) {
   global.__sharedPgPool__ = pool;
 }
 
+export interface QueryResult<T> {
+  rows: T[];
+  rowCount: number;
+}
+
 export async function query<T = unknown>(
   text: string,
-  params?: unknown[]
-): Promise<{ rows: T[]; rowCount: number } & unknown> {
-  const res = await pool.query(text, params as any);
-  return res as any;
+  params?: readonly unknown[]
+): Promise<QueryResult<T>> {
+  const res = await pool.query<T>(text, params);
+  return { rows: res.rows, rowCount: (res as unknown as { rowCount: number }).rowCount };
 }

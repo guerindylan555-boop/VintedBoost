@@ -110,6 +110,20 @@ export default function ResultatsPage() {
 
   const descEnabled = Boolean(item?.meta?.descEnabled);
 
+  // Safe JSON reader: falls back to text for non-JSON errors (e.g., 502 Bad Gateway)
+  async function readJsonOrText(res: Response): Promise<unknown> {
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      return res.json();
+    }
+    try {
+      const txt = await res.text();
+      return txt;
+    } catch {
+      return null;
+    }
+  }
+
   // Start generation automatically once when page loads and item is valid and not already with results
   useEffect(() => {
     if (loadingItem) return;
@@ -155,18 +169,21 @@ export default function ResultatsPage() {
         }),
       })
         .then(async (res) => {
-          const json = await res.json();
+          const payload = await readJsonOrText(res);
           if (!res.ok) {
             const envMode = Boolean(item.meta?.env?.useDefault && item.meta?.env?.image);
-            const baseMsg = (json?.error as string) || "Échec de la génération des images";
+            const baseMsg = (payload && typeof payload === 'object' && (payload as any).error)
+              ? String((payload as any).error)
+              : (typeof payload === 'string' && payload.trim()) ? payload.trim() : "Échec de la génération des images";
             const suggestions = envMode
               ? "\n\nAstuce: Google peut refuser le mode 2‑images. Vous pouvez: essayer sans environnement, modifier le prompt/style/poses, changer d’environnement, ou sélectionner manuellement OpenRouter dans Paramètres."
               : "";
             throw new Error(baseMsg + suggestions);
           }
-          const imagesAll = (json.images || []) as Array<string | null | undefined>;
+          const json = (payload && typeof payload === 'object') ? (payload as any) : {};
+          const imagesAll = Array.isArray(json?.images) ? (json.images as Array<string | null | undefined>) : [];
           const posesOrdered = Array.isArray(json?.poses) ? (json.poses as string[]) : null;
-          const errorsByPose = (json?.errors as Record<string, string> | undefined) || null;
+          const errorsByPose = (json && typeof json === 'object' ? (json as any).errors as Record<string, string> : null) || null;
           const posesForSuccess = posesOrdered ? imagesAll.map((img, i) => (img ? posesOrdered[i] : null)).filter(Boolean) as string[] : null;
           setGenPoses(posesForSuccess);
           setGenErrors(errorsByPose);
@@ -200,9 +217,14 @@ export default function ResultatsPage() {
             }),
           })
             .then(async (res) => {
-              const data = await res.json();
-              if (!res.ok) throw new Error(data?.error || "Échec de la génération de la description");
-              return data as Record<string, unknown>;
+              const payload = await readJsonOrText(res);
+              if (!res.ok) {
+                const base = (payload && typeof payload === 'object' && (payload as any).error)
+                  ? String((payload as any).error)
+                  : (typeof payload === 'string' && payload.trim()) ? payload.trim() : 'Échec de la génération de la description';
+                throw new Error(base);
+              }
+              return (payload || {}) as Record<string, unknown>;
             })
         : Promise.resolve(null as Record<string, unknown> | null);
 

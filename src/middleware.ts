@@ -11,13 +11,16 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Allow auth routes and Next internals/static assets
+  // Allow public routes and Next internals/static assets
   if (
-    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/public/") ||
-    pathname.startsWith("/auth")
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/creer") ||
+    pathname.startsWith("/resultats")
   ) {
     return NextResponse.next();
   }
@@ -45,6 +48,6 @@ export function middleware(req: NextRequest) {
 export const config = {
   // Run on everything except the Better Auth API and Next internals
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/auth).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api).*)",
   ],
 };

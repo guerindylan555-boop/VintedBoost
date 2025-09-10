@@ -162,6 +162,18 @@ export async function POST(req: NextRequest) {
     providerHeader === "openrouter" || providerHeader === "google"
       ? providerHeader
       : getImageProvider();
+  // Dev observability
+  try {
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug(
+        "[generate-images] provider=%s poses=%o mode=%s",
+        provider,
+        requestedPoses,
+        safeEnvImageDataUrl ? "two-images" : "one-image"
+      );
+    }
+  } catch {}
   try {
     // Run per-pose generations in parallel
     const tasks = requestedPoses.map((pose, idx) => {
@@ -250,6 +262,15 @@ export async function POST(req: NextRequest) {
         errorsByIndex[idx] = raw;
       }
     });
+
+    // Dev observability: status per pose
+    try {
+      if (process.env.NODE_ENV !== "production") {
+        const status = requestedPoses.map((p, i) => ({ pose: p, ok: Boolean(imagesOut[i]), error: errorsByIndex[i] || null }));
+        // eslint-disable-next-line no-console
+        console.debug("[generate-images] per-pose status=", status);
+      }
+    } catch {}
 
     const haveAny = imagesOut.filter(Boolean).length > 0;
     if (!haveAny) {

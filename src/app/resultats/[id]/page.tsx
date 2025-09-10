@@ -63,6 +63,8 @@ export default function ResultatsPage() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [editDescMode, setEditDescMode] = useState(false);
   const [descText, setDescText] = useState("");
+  const [genPoses, setGenPoses] = useState<string[] | null>(null);
+  const [genErrors, setGenErrors] = useState<Record<string, string> | null>(null);
 
   // Load item
   useEffect(() => {
@@ -154,8 +156,23 @@ export default function ResultatsPage() {
       })
         .then(async (res) => {
           const json = await res.json();
-          if (!res.ok) throw new Error(json?.error || "Échec de la génération des images");
-          const images = (json.images || []) as string[];
+          if (!res.ok) {
+            const envMode = Boolean(item.meta?.env?.useDefault && item.meta?.env?.image);
+            const baseMsg = (json?.error as string) || "Échec de la génération des images";
+            const suggestions = envMode
+              ? "\n\nAstuce: Google peut refuser le mode 2‑images. Vous pouvez: essayer sans environnement, modifier le prompt/style/poses, changer d’environnement, ou sélectionner manuellement OpenRouter dans Paramètres."
+              : "";
+            throw new Error(baseMsg + suggestions);
+          }
+          const imagesAll = (json.images || []) as Array<string | null | undefined>;
+          const posesOrdered = Array.isArray(json?.poses) ? (json.poses as string[]) : null;
+          const errorsByPose = (json?.errors as Record<string, string> | undefined) || null;
+          const posesForSuccess = posesOrdered ? imagesAll.map((img, i) => (img ? posesOrdered[i] : null)).filter(Boolean) as string[] : null;
+          setGenPoses(posesForSuccess);
+          setGenErrors(errorsByPose);
+          const images = imagesAll.filter((u): u is string => typeof u === 'string' && !!u);
+          // Dev: echo instructions to console to help debug prompts
+          try { if (process.env.NODE_ENV !== 'production' && Array.isArray(json?.instructions)) { console.debug('[generate-images] instructions', json.instructions); } } catch {}
           const next: Item = { ...item, results: images };
           setItem(next);
           upsertLocalHistory(next);
@@ -196,10 +213,13 @@ export default function ResultatsPage() {
       setProgress(descEnabled ? 70 : 90);
 
       if (descEnabled) {
+        let descError: string | null = null;
+        let data: Record<string, unknown> = {};
         if (descSettled.status !== "fulfilled") {
-          throw new Error(descSettled.reason instanceof Error ? descSettled.reason.message : String(descSettled.reason));
+          descError = descSettled.reason instanceof Error ? descSettled.reason.message : String(descSettled.reason);
+        } else {
+          data = descSettled.value || {} as Record<string, unknown>;
         }
-        const data = descSettled.value || {};
         // Auto-title if missing
         let nextTitle = (title || "").trim();
         if (!nextTitle) {
@@ -224,6 +244,10 @@ export default function ResultatsPage() {
         setDescText(typeof (data as any)?.descriptionText === "string" ? ((data as any).descriptionText as string) : "");
         upsertLocalHistory(withDesc);
         finalWithImages = withDesc;
+        // If description failed, show banner but do not block results
+        if (descError) {
+          setError(`Description non générée: ${descError}`);
+        }
       }
 
       // Persist to /api/history once after generation
@@ -419,7 +443,10 @@ export default function ResultatsPage() {
           />
         ) : (
           <>
-            <ResultsGallery sourceUrl={item.source} results={item.results} />
+            {error && step === "done" ? (
+              <div className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">{error}</div>
+            ) : null}
+            <ResultsGallery sourceUrl={item.source} results={item.results} poses={genPoses || undefined} errorsByPose={genErrors || undefined} />
             <div className="mt-3">
               {!editDescMode ? (
                 <>

@@ -200,6 +200,13 @@ export default function CreatePage() {
     // Ensure we have an item id, and store snapshot meta
     let id = currentItemId;
     if (!id) id = newId();
+    // Normalize poses: prefer explicit options.poses, else fallback to single pose
+    const allowedPoses: Pose[] = ["face", "trois-quarts", "profil"];
+    const rawPoses = Array.isArray(options.poses) && options.poses.length > 0
+      ? options.poses
+      : (options.pose ? [options.pose as Pose] : ["face"]);
+    const normalizedPoses: Pose[] = Array.from(new Set(rawPoses.filter((p): p is Pose => allowedPoses.includes(p as Pose)))).slice(0, 3);
+    const normalizedOptions: MannequinOptions = { ...options, poses: normalizedPoses };
     const item: HistItem = {
       id,
       createdAt: Date.now(),
@@ -208,7 +215,7 @@ export default function CreatePage() {
       description: null,
       status: "draft",
       meta: {
-        options,
+        options: normalizedOptions,
         product,
         descEnabled,
         env: useDefaultEnv ? { useDefault: true, kind: envKind, image: (envKind === "salon" ? defaultSalon : defaultChambre)?.image } : undefined,

@@ -172,10 +172,10 @@ export function composePromptSegments(
 
 // When an environment image is provided, omit background description
 export function segmentProvidedBackground(): string {
+  // Softer guidance to reduce refusals while keeping the intent clear
   return (
-    "Utilise l'image d’arrière‑plan fournie telle quelle; " +
-    "intègre la personne portant le vêtement au bon rapport d’échelle; " +
-    "respecte la perspective et la lumière pour rester photoréaliste."
+    "Composer la scène en utilisant l’arrière‑plan fourni; " +
+    "cohérence d’échelle, de perspective et de lumière."
   );
 }
 

@@ -12,6 +12,8 @@ function cx(...xs: Array<string | false | undefined>) {
 type ResultsGalleryProps = {
   sourceUrl: string | null;
   results: string[];
+  poses?: string[] | null;
+  errorsByPose?: Record<string, string> | null;
   className?: string;
 };
 
@@ -22,7 +24,7 @@ type ResultsGalleryProps = {
  * Mobile: swipe via native scroll-snap
  * Desktop: segmented control (tabs) to switch
  */
-export default function ResultsGallery({ sourceUrl, results, className }: ResultsGalleryProps) {
+export default function ResultsGallery({ sourceUrl, results, poses, errorsByPose, className }: ResultsGalleryProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [canPrev, setCanPrev] = useState(false);
   const [canNext, setCanNext] = useState(false);
@@ -38,6 +40,7 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
 
   const hasSlides = slides.length > 0;
   const hasBoth = slides.length >= 2;
+  const hasErrors = Boolean(errorsByPose && Object.keys(errorsByPose).length > 0);
 
   const onSelect = useCallback((api: EmblaCarouselType) => {
     setSelectedIndex(api.selectedScrollSnap());
@@ -59,6 +62,16 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
 
   return (
     <div className={className}>
+      {hasErrors ? (
+        <div className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+          <div className="font-medium mb-1">Certaines poses n'ont pas pu être générées</div>
+          <ul className="list-disc pl-5 space-y-0.5">
+            {Object.entries(errorsByPose!).map(([pose, msg]) => (
+              <li key={pose}><span className="uppercase text-[10px] font-semibold">{pose}</span>: {msg}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {!hasSlides ? (
         <div className={cx("flex h-full min-h-40 items-center justify-center text-sm text-gray-500 dark:text-gray-400")}>
           Aucune image à afficher.
@@ -97,9 +110,9 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
                     <div className="absolute right-2 top-2 rounded-md bg-black/60 dark:bg-black/70 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
                       Télécharger
                     </div>
-                    {/* Badge label */}
+                    {/* Badge label with optional pose */}
                     <div className="absolute left-2 top-2 rounded-md bg-white/85 dark:bg-gray-900/80 px-2 py-1 text-[10px] font-medium text-gray-700 dark:text-gray-300">
-                      {i < genCount ? "Générée" : "Source"}
+                      {i < genCount ? (poses?.[i] ? `Générée · ${poses?.[i]}` : "Générée") : "Source"}
                     </div>
                   </a>
                 </div>

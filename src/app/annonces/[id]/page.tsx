@@ -5,6 +5,7 @@ import type React from "react";
 import { useParams, useRouter } from "next/navigation";
 import ResultsGallery from "@/components/ResultsGallery";
 import DescriptionPanel from "@/components/DescriptionPanel";
+import Spinner from "@/components/Spinner";
 
 type Item = {
   id: string;
@@ -222,7 +223,7 @@ export default function AnnonceDetailPage() {
       <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">
         <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Résultat</h2>
         {loading ? (
-          <div className="flex h-60 items-center justify-center text-sm text-gray-500 dark:text-gray-400">Chargement…</div>
+          <div className="flex h-60 items-center justify-center"><Spinner label="Chargement…" /></div>
         ) : !item ? (
           <div className="text-sm text-gray-500 dark:text-gray-400">Annonce introuvable.</div>
         ) : (

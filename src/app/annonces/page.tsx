@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Spinner from "@/components/Spinner";
  
 
 type Item = {
@@ -35,6 +36,7 @@ export default function MesAnnoncesPage() {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
@@ -56,6 +58,7 @@ export default function MesAnnoncesPage() {
   // Try server as source of truth (best-effort)
   useEffect(() => {
     (async () => {
+      setSyncing(true);
       try {
         const res = await fetchWithTimeout("/api/history", undefined, 2000);
         if (!res.ok) return; // silently ignore (unauthorized or offline)
@@ -74,6 +77,8 @@ export default function MesAnnoncesPage() {
         setItems(normalized);
       } catch {
         // ignore
+      } finally {
+        setSyncing(false);
       }
     })();
   }, []);
@@ -99,6 +104,8 @@ export default function MesAnnoncesPage() {
     });
     return sorted;
   }, [items, query, sortOrder]);
+
+  const showLoading = loading || (syncing && filtered.length === 0);
 
   async function openItem(it: Item) {
     try { localStorage.setItem("vintedboost_last", JSON.stringify(it)); } catch {}
@@ -207,6 +214,7 @@ export default function MesAnnoncesPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="ml-auto flex items-center gap-2">
+          {syncing ? <Spinner size="xs" label="Chargement…" /> : null}
           <label className="text-xs text-gray-600 dark:text-gray-300">Tri</label>
           <select
             value={sortOrder}
@@ -220,7 +228,7 @@ export default function MesAnnoncesPage() {
       </div>
 
       <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm min-h-40 overflow-x-hidden">
-        {loading ? (
+        {showLoading ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-2 animate-pulse">

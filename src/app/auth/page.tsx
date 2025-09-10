@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import Spinner from "@/components/Spinner";
 
 // Ensure this route is never statically prerendered
 export const dynamic = "force-dynamic";
@@ -141,7 +142,7 @@ function AuthPageInner() {
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-center">Chargement…</div>}>
+    <Suspense fallback={<div className="p-6 flex items-center justify-center"><Spinner label="Chargement…" /></div>}>
       <AuthPageInner />
     </Suspense>
   );

@@ -403,6 +403,14 @@ export default function ResultatsPage() {
     }
   }
 
+  // Auto-start generation once item is hydrated and not yet started
+  useEffect(() => {
+    if (!started && !loadingItem && item && item.source) {
+      setStarted(true);
+      runGeneration();
+    }
+  }, [started, loadingItem, item?.source]);
+
   function retry() {
     setStarted(false);
     setError(null);

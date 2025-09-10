@@ -5,7 +5,7 @@ import type React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Toggle from "@/components/Toggle";
-import { buildInstruction, type MannequinOptions } from "@/lib/prompt";
+import { buildInstruction, type MannequinOptions, type Pose } from "@/lib/prompt";
 
 function cx(...xs: Array<string | false | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -98,7 +98,7 @@ export default function CreatePage() {
   const GENDERS = ["femme", "homme"] as const;
   const SIZES = ["xxs", "xs", "s", "m", "l", "xl", "xxl"] as const;
   const CONDITIONS = ["neuf", "très bon état", "bon état", "satisfaisant"] as const;
-  const POSES = ["face", "trois-quarts", "profil", "assis", "marche"] as const;
+  const POSES: Pose[] = ["face", "trois-quarts", "profil"];
   const STYLES = ["professionnel", "amateur"] as const;
   const BACKGROUNDS = ["chambre", "salon", "studio", "extérieur"] as const;
 
@@ -107,10 +107,12 @@ export default function CreatePage() {
     [imageDataUrl, generating]
   );
 
-  const promptPreview = useMemo(
-    () => buildInstruction(options || {}, undefined, "aperçu"),
-    [options]
-  );
+  const promptPreview = useMemo(() => {
+    const selected = (options.poses && options.poses.length > 0)
+      ? options.poses[0]
+      : (options.pose as Pose | undefined) || "face";
+    return buildInstruction({ ...options, pose: selected }, undefined, "aperçu");
+  }, [options]);
 
   // Helpers: local history upsert + last
   function upsertLocalHistory(partial: HistItem) {
@@ -465,11 +467,43 @@ export default function CreatePage() {
                       </div>
                     </div>
                     <div>
-                      <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Pose</div>
+                      <div className="mb-1 flex items-center justify-between">
+                        <div className="text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Pose</div>
+                        <button
+                          type="button"
+                          onClick={() => setOptions((o) => ({ ...o, poses: [...POSES], pose: undefined }))}
+                          className="text-[10px] uppercase text-brand-700 hover:underline"
+                        >
+                          Tout sélectionner
+                        </button>
+                      </div>
                       <div className="flex flex-wrap gap-2">
-                        {POSES.map((p) => (
-                          <button key={p} onClick={() => setOptions((o) => ({ ...o, pose: p }))} className={cx("rounded-md border px-2 py-1 text-xs uppercase", options.pose === p ? "bg-brand-600 text-white border-brand-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800")}>{p}</button>
-                        ))}
+                        {POSES.map((p) => {
+                          const selectedList = Array.isArray(options.poses) ? options.poses : [];
+                          const isSelected = selectedList.includes(p) || options.pose === p;
+                          return (
+                            <button
+                              key={p}
+                              onClick={() =>
+                                setOptions((o) => {
+                                  const current = Array.isArray(o.poses) ? [...o.poses] : (o.pose ? [o.pose as Pose] : []);
+                                  const idx = current.indexOf(p);
+                                  if (idx >= 0) current.splice(idx, 1);
+                                  else current.push(p);
+                                  // Ensure at least one selected; if user deselects last, fallback to face
+                                  const next = current.length > 0 ? current : ["face"];
+                                  return { ...o, poses: next, pose: undefined };
+                                })
+                              }
+                              className={cx(
+                                "rounded-md border px-2 py-1 text-xs uppercase",
+                                isSelected ? "bg-brand-600 text-white border-brand-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800"
+                              )}
+                            >
+                              {p}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                     <div>

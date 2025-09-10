@@ -53,7 +53,7 @@ export default function ResultatsPage() {
   const router = useRouter();
   const [item, setItem] = useState<Item | null>(null);
   const [loadingItem, setLoadingItem] = useState(true);
-  const [step, setStep] = useState<"idle" | "prepare" | "images" | "description" | "saving" | "done" | "error">("idle");
+  const [step, setStep] = useState<"idle" | "prepare" | "generating" | "saving" | "done" | "error">("idle");
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
@@ -102,11 +102,7 @@ export default function ResultatsPage() {
     if (loadingItem) return;
     if (!item || !item.source) return;
     if (started || step !== "idle") return;
-    if (Array.isArray(item.results) && item.results.length > 0) {
-      setStep("done");
-      setProgress(100);
-      return;
-    }
+    // Even if images already exist, we could still generate description separately later.
     setStarted(true);
     runGeneration();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,10 +117,10 @@ export default function ResultatsPage() {
       setProgress(8);
       context = "Préparation";
 
-      // Step 1: images
-      setStep("images");
+      // Parallel generation: images and (optional) description
+      setStep("generating");
       setProgress(20);
-      context = "Génération des images";
+      context = "Génération (images + description)";
       const provider = (() => {
         try {
           return localStorage.getItem("imageProvider");
@@ -132,98 +128,108 @@ export default function ResultatsPage() {
           return null;
         }
       })();
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (provider) headers["X-Image-Provider"] = provider;
-      const imgRes = await fetch("/api/generate-images", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ imageDataUrl: item.source, options: item.meta?.options, count: 1 }),
-      });
-      const imgJson = await imgRes.json();
-      if (!imgRes.ok) throw new Error(imgJson?.error || "Échec de la génération des images");
-      const images = (imgJson.images || []) as string[];
-      const withImages: Item = { ...item, results: images };
-      setItem(withImages);
-      upsertLocalHistory(withImages);
-      setProgress(60);
-      try {
-        await fetchWithTimeout(
-          "/api/history",
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, source: item.source, results: images, createdAt: item.createdAt, description: item.description ?? null }) },
-          2000
-        );
-      } catch {}
+      const sharedHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (provider) sharedHeaders["X-Image-Provider"] = provider;
 
-      // Step 2: description (optional)
-      if (descEnabled) {
-        setStep("description");
-        setProgress(80);
-        context = "Génération de la description";
-        const res = await fetch("/api/describe-photo", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            imageDataUrl: item.source,
-            product: {
-              brand: item.meta?.product.brand || null,
-              model: item.meta?.product.model || null,
-              gender: item.meta?.options.gender || null,
-              size: item.meta?.options.size || null,
-              condition: (item.meta?.product.condition as string | null) || null,
-            },
-          }),
+      const imagesReq = fetch("/api/generate-images", {
+        method: "POST",
+        headers: sharedHeaders,
+        body: JSON.stringify({ imageDataUrl: item.source, options: item.meta?.options, poses: item.meta?.options?.poses }),
+      })
+        .then(async (res) => {
+          const json = await res.json();
+          if (!res.ok) throw new Error(json?.error || "Échec de la génération des images");
+          const images = (json.images || []) as string[];
+          const next: Item = { ...item, results: images };
+          setItem(next);
+          upsertLocalHistory(next);
+          return images;
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || "Échec de la génération de la description");
+
+      const descReq = descEnabled
+        ? fetch("/api/describe-photo", {
+            method: "POST",
+            headers: sharedHeaders,
+            body: JSON.stringify({
+              imageDataUrl: item.source,
+              product: {
+                brand: item.meta?.product.brand || null,
+                model: item.meta?.product.model || null,
+                gender: item.meta?.options.gender || null,
+                size: item.meta?.options.size || null,
+                condition: (item.meta?.product.condition as string | null) || null,
+              },
+            }),
+          })
+            .then(async (res) => {
+              const data = await res.json();
+              if (!res.ok) throw new Error(data?.error || "Échec de la génération de la description");
+              return data as Record<string, unknown>;
+            })
+        : Promise.resolve(null as Record<string, unknown> | null);
+
+      const [imgSettled, descSettled] = await Promise.allSettled([imagesReq, descReq]);
+
+      if (imgSettled.status !== "fulfilled") {
+        throw new Error(imgSettled.reason instanceof Error ? imgSettled.reason.message : String(imgSettled.reason));
+      }
+
+      let finalWithImages: Item = { ...item, results: imgSettled.value };
+      setItem(finalWithImages);
+      upsertLocalHistory(finalWithImages);
+      setProgress(descEnabled ? 70 : 90);
+
+      if (descEnabled) {
+        if (descSettled.status !== "fulfilled") {
+          throw new Error(descSettled.reason instanceof Error ? descSettled.reason.message : String(descSettled.reason));
+        }
+        const data = descSettled.value || {};
         // Auto-title if missing
         let nextTitle = (title || "").trim();
         if (!nextTitle) {
-          const dTitle = typeof data?.title === "string" ? (data.title as string) : "";
+          const dTitle = typeof (data as any)?.title === "string" ? ((data as any).title as string) : "";
           if (dTitle) nextTitle = dTitle;
           else {
-            const brand = (withImages.meta?.product.brand || "").trim();
-            const model = (withImages.meta?.product.model || "").trim();
-            const size = (withImages.meta?.options.size || "").toString().toUpperCase();
+            const brand = (finalWithImages.meta?.product.brand || "").trim();
+            const model = (finalWithImages.meta?.product.model || "").trim();
+            const size = (finalWithImages.meta?.options.size || "").toString().toUpperCase();
             const base = [brand, model].filter(Boolean).join(" ");
             if (base) nextTitle = size ? `${base} (${size})` : base;
             if (!nextTitle) {
-              const text = typeof data?.descriptionText === "string" ? (data.descriptionText as string) : "";
+              const text = typeof (data as any)?.descriptionText === "string" ? ((data as any).descriptionText as string) : "";
               if (text) nextTitle = text.slice(0, 60).replace(/\s+\S*$/, "").trim();
             }
-            if (!nextTitle) nextTitle = `Annonce du ${new Date(withImages.createdAt).toLocaleDateString()}`;
+            if (!nextTitle) nextTitle = `Annonce du ${new Date(finalWithImages.createdAt).toLocaleDateString()}`;
           }
         }
-        const withDesc: Item = { ...withImages, description: data, title: nextTitle };
+        const withDesc: Item = { ...finalWithImages, description: data, title: nextTitle };
         setItem(withDesc);
         setTitle(withDesc.title || "");
-        setDescText(typeof data?.descriptionText === "string" ? (data.descriptionText as string) : "");
+        setDescText(typeof (data as any)?.descriptionText === "string" ? ((data as any).descriptionText as string) : "");
         upsertLocalHistory(withDesc);
-        try {
-          const patchRes = await fetchWithTimeout(
-            `/api/history/${encodeURIComponent(String(item.id))}`,
-            { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: { ...data, title: withDesc.title || data?.title } }) },
-            2000
-          );
-          if (!patchRes.ok) {
-            await fetchWithTimeout(
-              "/api/history",
-              { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, source: item.source, results: images, createdAt: item.createdAt, description: { ...data, title: withDesc.title || data?.title } }) },
-              2000
-            );
-          }
-        } catch {}
+        finalWithImages = withDesc;
       }
 
-      // Step 3: saving/done
+      // Persist to /api/history once after generation
+      try {
+        const saveBody = {
+          id: finalWithImages.id,
+          source: finalWithImages.source,
+          results: finalWithImages.results,
+          createdAt: finalWithImages.createdAt,
+          description: finalWithImages.description ?? null,
+        };
+        await fetchWithTimeout("/api/history", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(saveBody) }, 2000);
+      } catch {}
+
+      // Saving/done
       setStep("saving");
       setProgress(96);
-      setTimeout(() => { setStep("done"); setProgress(100); }, 200); // small delay for UX
+      setTimeout(() => { setStep("done"); setProgress(100); }, 200);
 
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(`Étape: ${step === "images" ? "Génération des images" : step === "description" ? "Génération de la description" : step === "prepare" ? "Préparation" : step === "saving" ? "Finalisation" : context} - ${msg || "Erreur inconnue"}`);
+      setError(`Étape: ${step === "generating" ? "Génération" : step === "prepare" ? "Préparation" : step === "saving" ? "Finalisation" : context} - ${msg || "Erreur inconnue"}`);
       setStep("error");
       setProgress(null);
     }
@@ -377,12 +383,11 @@ export default function ResultatsPage() {
         {showLoading ? (
           <LoadingScreen
             title="Génération en cours"
-            subtitle="Veuillez patienter pendant la création du rendu"
+            subtitle={descEnabled ? "Images et description en parallèle" : "Génération des images"}
             progress={progress}
             stepLabel={
               step === "prepare" ? "Préparation"
-              : step === "images" ? "Génération des images"
-              : step === "description" ? "Génération de la description"
+              : step === "generating" ? (descEnabled ? "Images + description" : "Images")
               : step === "saving" ? "Finalisation"
               : "Initialisation"
             }

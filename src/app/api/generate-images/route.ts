@@ -178,17 +178,18 @@ export async function POST(req: NextRequest) {
         {
           const parts = [
             { text: instruction },
-            { inlineData: { mimeType, data: base64Data } },
+            { inline_data: { mime_type: mimeType, data: base64Data } },
           ];
           const payload = {
             contents: [{ role: "user", parts }],
-            // Relax safety for clothing/mannequin edits which can be misclassified
+            // Relax safety where permitted by REST API enums
             safetySettings: [
-              { category: "HARM_CATEGORY_SEXUAL", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
               { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
-              { category: "HARM_CATEGORY_VIOLENCE", threshold: "BLOCK_ONLY_HIGH" },
+              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
             ],
-          };
+          } as Record<string, unknown>;
           try {
             const data = await googleAiFetch(payload, { cache: "no-store" });
             const urls = extractGoogleImageUrls(data);

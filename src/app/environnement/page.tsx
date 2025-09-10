@@ -20,6 +20,7 @@ function cx(...xs: Array<string | false | undefined>) {
 export default function EnvironmentPage() {
   const [prompt, setPrompt] = useState("");
   const [kind, setKind] = useState<"chambre" | "salon" | null>(null);
+  const [subject, setSubject] = useState<"aucun" | "femme" | "homme">("aucun");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Preview removed: generation auto-saves
@@ -63,10 +64,12 @@ export default function EnvironmentPage() {
     setError(null);
     // no preview in auto-save flow
     try {
+      const subjectSuffix = subject === 'femme' ? ' (avec une femme)' : subject === 'homme' ? ' (avec un homme)' : '';
+      const finalPrompt = `${prompt.trim()}${subjectSuffix}`.trim();
       const res = await fetch("/api/generate-environment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt.trim(), kind: kind || "chambre" }),
+        body: JSON.stringify({ prompt: finalPrompt, kind: kind || "chambre" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(String((data as any)?.error || "Échec de la génération"));
@@ -81,7 +84,7 @@ export default function EnvironmentPage() {
           const saveRes = await fetch("/api/environments", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: prompt.trim(), kind: kind || "chambre", image: u }),
+            body: JSON.stringify({ prompt: finalPrompt, kind: kind || "chambre", image: u, meta: { subject } }),
           });
           const saveData = await saveRes.json();
           if (saveRes.ok && (saveData as any)?.item) {
@@ -175,6 +178,21 @@ export default function EnvironmentPage() {
                 placeholder={kind === 'salon' ? "Ex: salon moderne, canapé gris, table basse en bois, plante, lumière naturelle" : "Ex: chambre scandinave, lit en bois clair, draps blancs, mur beige, plantes"}
                 className="w-full min-h-28 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
               />
+            </div>
+
+            <div className="mb-3">
+              <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Personne</div>
+              <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1 bg-white dark:bg-gray-900">
+                {(["aucun", "femme", "homme"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSubject(s)}
+                    className={cx("px-3 py-1.5 text-xs rounded-md", subject === s ? "bg-brand-600 text-white" : "text-gray-700 dark:text-gray-200")}
+                  >
+                    {s === "aucun" ? "Aucune" : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="mt-4 flex items-center gap-2">

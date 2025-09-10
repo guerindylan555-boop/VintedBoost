@@ -92,16 +92,23 @@ export default function ResultatsPage() {
         try {
           const r = await fetch(`/api/jobs/${encodeURIComponent(String(jobId))}`);
           if (r.ok) {
-            const job = await r.json() as { main_image?: string; env_image?: string | null; options?: MannequinOptions; product?: any };
+            const job = await r.json() as { main_image?: string; env_image?: string | null; options?: MannequinOptions; product?: any; status?: string; results?: any };
             if (job?.main_image) {
               const background = (job?.options as any)?.background;
               const envKindGuess = (background === 'salon' || background === 'chambre') ? background : 'chambre';
+              // Hydrate any existing results from the job (server-side completed runs)
+              let images: string[] = [];
+              try {
+                const raw = (job as any)?.results;
+                const arr = Array.isArray(raw?.images) ? raw.images : (Array.isArray(raw) ? raw : []);
+                images = (arr as Array<string | null | undefined>).filter((u): u is string => typeof u === 'string' && !!u);
+              } catch {}
               found = {
                 id: jobId,
                 createdAt: Date.now(),
                 source: job.main_image,
-                results: [],
-                status: "draft",
+                results: images,
+                status: job?.status === 'done' ? 'final' : 'draft',
                 meta: {
                   options: (job.options || {}) as MannequinOptions,
                   product: (job.product || { brand: "", model: "" }),
@@ -414,13 +421,17 @@ export default function ResultatsPage() {
     }
   }
 
-  // Auto-start generation once item is hydrated and not yet started
+  // Auto-start generation only if no results and not final
   useEffect(() => {
     if (!started && !loadingItem && item && item.source) {
-      setStarted(true);
-      runGeneration();
+      const hasResults = Array.isArray(item.results) && item.results.length > 0;
+      const isFinal = item.status === 'final';
+      if (!hasResults && !isFinal) {
+        setStarted(true);
+        runGeneration();
+      }
     }
-  }, [started, loadingItem, item?.source]);
+  }, [started, loadingItem, item?.source, item?.results?.length, item?.status]);
 
   function retry() {
     setStarted(false);
@@ -514,7 +525,7 @@ export default function ResultatsPage() {
     );
   }
 
-  const showLoading = step !== "done" && step !== "error";
+  const showLoading = step === "prepare" || step === "generating" || step === "saving";
 
   return (
     <div className="mx-auto max-w-screen-md p-4">

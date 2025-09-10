@@ -80,7 +80,10 @@ export default function MesAnnoncesPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const base = items.filter((it) => {
+    const base = items
+      // Hide items without any generated results by default
+      .filter((it) => Array.isArray(it.results) && it.results.length > 0)
+      .filter((it) => {
       if (!q) return true;
       const hay = [
         new Date(it.createdAt).toLocaleString().toLowerCase(),

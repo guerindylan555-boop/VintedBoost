@@ -166,23 +166,8 @@ export default function CreatePage() {
         setError(null);
         setOutImages([]);
         setEditCollapsed(false);
-        // Create or update draft immediately
-        setCurrentItemId((curr) => {
-          const id = curr || newId();
-          const item: HistItem = {
-            id,
-            createdAt: curr ? Date.now() : Date.now(),
-            source: dataUrl,
-            results: [],
-            description: null,
-            status: "draft",
-            title: title?.trim() || undefined,
-          };
-          upsertLocalHistory(item);
-          // Best-effort server persist
-          persistServer(item);
-          return id;
-        });
+        // Only create a local working id; do not persist draft until user saves or generation completes
+        setCurrentItemId((curr) => curr || newId());
       })
       .catch(() => setError("Impossible de lire l'image"));
   }
@@ -256,8 +241,7 @@ export default function CreatePage() {
         });
       }
     } catch {}
-    upsertLocalHistory(item);
-    persistServer(item);
+    // Do not persist here; results page will persist after generation, and user can manually save drafts
     // Temp handoff in case history write is slow or blocked
     try { sessionStorage.setItem(`vintedboost_tmp_${id}`, JSON.stringify(item)); } catch {}
     setCurrentItemId(id);

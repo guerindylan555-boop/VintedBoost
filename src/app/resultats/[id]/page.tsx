@@ -105,7 +105,7 @@ export default function ResultatsPage() {
       } catch {}
     }
     (async () => {
-      // Server fetch as last resort when we have a jobId saved but no local item
+      // Server fetch fallback when we have a saved jobId or when we can map by clientItemId
       if (!found) {
         try {
           const tmp = sessionStorage.getItem(`vintedboost_tmp_${theId}`);
@@ -123,6 +123,24 @@ export default function ResultatsPage() {
                   status: "draft",
                   meta: { options: (job.options || {}) as MannequinOptions, product: (job.product || { brand: "", model: "" }), descEnabled: false },
                 } as Item;
+              }
+            }
+          } else {
+            // Try by-client mapping if sessionStorage lost the jobId
+            const r2 = await fetch(`/api/jobs/by-client/${encodeURIComponent(String(theId))}`);
+            if (r2.ok) {
+              const job = await r2.json() as { id?: string; main_image?: string; options?: MannequinOptions; product?: any };
+              if (job?.main_image) {
+                found = {
+                  id: theId,
+                  createdAt: Date.now(),
+                  source: job.main_image,
+                  results: [],
+                  status: "draft",
+                  meta: { options: (job.options || {}) as MannequinOptions, product: (job.product || { brand: "", model: "" }), descEnabled: false },
+                } as Item;
+                // Rehydrate tmp with jobId for later steps
+                try { sessionStorage.setItem(`vintedboost_tmp_${theId}`, JSON.stringify({ id: theId, jobId: job.id, source: job.main_image })); } catch {}
               }
             }
           }

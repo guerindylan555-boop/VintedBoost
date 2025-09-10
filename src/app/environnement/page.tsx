@@ -22,7 +22,7 @@ export default function EnvironmentPage() {
   const [kind, setKind] = useState<"chambre" | "salon" | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  // Preview removed: generation auto-saves
   const [items, setItems] = useState<EnvItem[]>([]);
   const canGenerate = useMemo(() => Boolean(prompt.trim()) && !generating && Boolean(kind), [prompt, generating, kind]);
 
@@ -61,7 +61,7 @@ export default function EnvironmentPage() {
     if (!canGenerate) return;
     setGenerating(true);
     setError(null);
-    setPreview(null);
+    // no preview in auto-save flow
     try {
       const res = await fetch("/api/generate-environment", {
         method: "POST",
@@ -70,35 +70,36 @@ export default function EnvironmentPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(String((data as any)?.error || "Échec de la génération"));
-      const url = (Array.isArray((data as any)?.images) ? (data as any).images[0] : null) || null;
-      if (!url) throw new Error("Pas d'image reçue");
-      setPreview(url);
+      const urls: string[] = Array.isArray((data as any)?.images)
+        ? ((data as any).images as string[]).filter(Boolean)
+        : [];
+      if (urls.length === 0) throw new Error("Pas d'image reçue");
+      // Auto-save all returned images
+      const savedItems: EnvItem[] = [];
+      for (const u of urls) {
+        try {
+          const saveRes = await fetch("/api/environments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: prompt.trim(), kind: kind || "chambre", image: u }),
+          });
+          const saveData = await saveRes.json();
+          if (saveRes.ok && (saveData as any)?.item) {
+            savedItems.push((saveData as any).item as EnvItem);
+          }
+        } catch {}
+      }
+      if (savedItems.length > 0) {
+        setItems((prev) => {
+          const next = [...savedItems, ...prev];
+          try { localStorage.setItem("vintedboost_envs", JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setGenerating(false);
-    }
-  }
-
-  async function savePreview() {
-    if (!preview) return;
-    try {
-      const res = await fetch("/api/environments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt.trim(), kind: kind || "chambre", image: preview }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(String((data as any)?.error || "Échec de l'enregistrement"));
-      const newItem: EnvItem = (data as any).item as EnvItem;
-      setItems((prev) => {
-        const next = [newItem, ...prev];
-        try { localStorage.setItem("vintedboost_envs", JSON.stringify(next)); } catch {}
-        return next;
-      });
-      setPreview(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -190,27 +191,7 @@ export default function EnvironmentPage() {
             </div>
             {error ? <div className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</div> : null}
 
-            {preview ? (
-              <div className="mt-4">
-                <div className="relative w-full aspect-[4/3] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-900">
-                  <Image src={preview} alt="aperçu" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-contain" unoptimized />
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <button
-                    onClick={savePreview}
-                    className="inline-flex items-center justify-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700"
-                  >
-                    Enregistrer comme environnement
-                  </button>
-                  <button
-                    onClick={() => setPreview(null)}
-                    className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    Réinitialiser
-                  </button>
-                </div>
-              </div>
-            ) : null}
+            {/* Preview removed: images are auto-enregistrées */}
           </section>
 
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur p-4 shadow-sm">

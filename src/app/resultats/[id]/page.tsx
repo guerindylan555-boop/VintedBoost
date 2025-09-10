@@ -175,7 +175,7 @@ export default function ResultatsPage() {
           try {
             if (process.env.NODE_ENV !== 'production') {
               if (Array.isArray(json?.instructions)) console.debug('[generate-images] instructions', json.instructions);
-              if (json?.debug) console.debug('[generate-images] debug', json.debug);
+              if (json?.debug) console.debug('[generate-images] debug', json.debug, { options: item.meta?.options, env: item.meta?.env });
             }
           } catch {}
           const next: Item = { ...item, results: images };

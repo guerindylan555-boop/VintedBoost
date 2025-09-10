@@ -187,11 +187,27 @@ export default function CreatePage() {
       .catch(() => setError("Impossible de lire l'image"));
   }
 
-  function generate() {
+  async function generate() {
     if (!imageDataUrl) return;
     if (useDefaultEnv) {
-      const env = envKind === "salon" ? defaultSalon : defaultChambre;
-      if (!env) { setError("Définissez d'abord un environnement par défaut"); return; }
+      let env = envKind === "salon" ? defaultSalon : defaultChambre;
+      if (!env) {
+        // Just-in-time refresh of default environments
+        try {
+          const res = await fetch(`/api/environments?kind=${encodeURIComponent(envKind)}`, { cache: "no-store" });
+          if (res.ok) {
+            const data = await res.json();
+            const items = Array.isArray(data?.items) ? data.items as Array<{ id: string; kind: string; image: string; isDefault?: boolean }> : [];
+            const def = items.find((x) => x.isDefault);
+            if (def) {
+              env = { id: def.id, image: def.image };
+              if (envKind === "salon") setDefaultSalon(env);
+              else setDefaultChambre(env);
+            }
+          }
+        } catch {}
+        if (!env) { setError("Définissez d'abord un environnement par défaut"); return; }
+      }
     }
     setGenerating(true);
     setError(null);
@@ -222,6 +238,21 @@ export default function CreatePage() {
       },
       title: title?.trim() || undefined,
     };
+    // Dev snapshot log
+    try {
+      if (process.env.NODE_ENV !== 'production') {
+        const envImg = item.meta?.env?.image || null;
+        const len = typeof envImg === 'string' ? envImg.length : 0;
+        // eslint-disable-next-line no-console
+        console.debug('[create] generate snapshot', {
+          gender: normalizedOptions.gender,
+          poses: normalizedOptions.poses,
+          useDefaultEnv,
+          envKind,
+          envImage: envImg ? (envImg.startsWith('data:') ? `data-url(${len} chars)` : (envImg.startsWith('http') ? 'http-url' : 'unknown')) : null,
+        });
+      }
+    } catch {}
     upsertLocalHistory(item);
     persistServer(item);
     // Temp handoff in case history write is slow or blocked
@@ -623,6 +654,7 @@ export default function CreatePage() {
 
             <div className="mt-4 flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => { if (canGenerate) generate(); }}
                 disabled={!canGenerate}
                 className={cx(

@@ -193,6 +193,12 @@ export async function POST(req: NextRequest) {
         requestedPoses,
         safeEnvImageDataUrl ? "two-images" : "one-image"
       );
+      // log options.gender if provided
+      const gender = (options as any)?.gender || (options as any)?.Gender || null;
+      if (gender) {
+        // eslint-disable-next-line no-console
+        console.debug("[generate-images] options.gender=", gender);
+      }
     }
   } catch {}
   try {

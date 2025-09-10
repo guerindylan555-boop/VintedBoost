@@ -11,7 +11,7 @@ function cx(...xs: Array<string | false | undefined>) {
 
 type ResultsGalleryProps = {
   sourceUrl: string | null;
-  results: string[]; // only first is used as primary slide for now
+  results: string[];
   className?: string;
 };
 
@@ -29,10 +29,12 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: "start", containScroll: "trimSnaps", dragFree: false, skipSnaps: false });
 
   const slides = useMemo(() => {
-    const gen = results[0] || null;
+    const gens = Array.isArray(results) ? results.filter((u): u is string => typeof u === "string" && !!u) : [];
     const src = sourceUrl || null;
-    return [gen, src].filter((x): x is string => Boolean(x));
+    return src ? [...gens, src] : gens;
   }, [results, sourceUrl]);
+
+  const genCount = useMemo(() => (Array.isArray(results) ? results.filter((u) => typeof u === "string" && !!u).length : 0), [results]);
 
   const hasSlides = slides.length > 0;
   const hasBoth = slides.length >= 2;
@@ -97,7 +99,7 @@ export default function ResultsGallery({ sourceUrl, results, className }: Result
                     </div>
                     {/* Badge label */}
                     <div className="absolute left-2 top-2 rounded-md bg-white/85 dark:bg-gray-900/80 px-2 py-1 text-[10px] font-medium text-gray-700 dark:text-gray-300">
-                      {i === 0 ? "Générée" : "Source"}
+                      {i < genCount ? "Générée" : "Source"}
                     </div>
                   </a>
                 </div>

@@ -19,6 +19,7 @@ async function ensureTable() {
     `ALTER TABLE history_items
      ADD COLUMN IF NOT EXISTS description JSONB`
   );
+  await query(`CREATE INDEX IF NOT EXISTS idx_history_items_session_created ON history_items(session_id, created_at DESC);`);
 }
 
 export async function GET(req: NextRequest) {

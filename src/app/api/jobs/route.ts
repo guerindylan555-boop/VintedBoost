@@ -21,9 +21,16 @@ async function ensureJobsTable() {
       env_image TEXT,
       status TEXT NOT NULL DEFAULT 'created',
       results JSONB,
-      debug JSONB
+      debug JSONB,
+      provider TEXT,
+      started_at TIMESTAMPTZ,
+      ended_at TIMESTAMPTZ,
+      error TEXT
     );
   `);
+  // Helpful indexes for performance
+  await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_session_created ON generation_jobs(session_id, created_at DESC);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_status ON generation_jobs(status);`);
 }
 
 function isHttpUrl(str: string): boolean {

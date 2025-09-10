@@ -34,6 +34,7 @@ async function ensureTable() {
        END IF;
      END$$;`
   );
+  await query(`CREATE INDEX IF NOT EXISTS idx_environment_images_session_created ON environment_images(session_id, created_at DESC);`);
 }
 
 export async function GET(req: NextRequest) {

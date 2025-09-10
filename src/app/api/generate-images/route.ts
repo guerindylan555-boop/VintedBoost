@@ -60,7 +60,10 @@ export async function POST(req: NextRequest) {
       str = str.replace(";base66,", ";base64,");
     }
     if (str.startsWith("http://") || str.startsWith("https://")) {
-      const resp = await fetch(str);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const resp = await fetch(str, { signal: controller.signal });
+      clearTimeout(timeout);
       if (!resp.ok) throw new Error("Failed to fetch environment image");
       const contentType = resp.headers.get("content-type") || "image/jpeg";
       const buf = Buffer.from(await resp.arrayBuffer());

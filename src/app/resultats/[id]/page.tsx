@@ -244,27 +244,17 @@ export default function ResultatsPage() {
         }
       } catch {}
 
-      const imagesReq = fetch("/api/generate-images", {
-        method: "POST",
-        headers: sharedHeaders,
-        body: JSON.stringify({
-          imageDataUrl: item.source,
-          environmentImageDataUrl: envImageForRequest,
-          options: item.meta?.options,
-          poses: item.meta?.options?.poses,
-        }),
-      })
-        .then(async (res) => {
+      // New flow: trigger generation on prepared job if we have a jobId; else fallback to legacy endpoint
+      const imagesReq = (async () => {
+        const jid = linkedJobId;
+        if (jid) {
+          const res = await fetch(`/api/jobs/${encodeURIComponent(String(jid))}/generate`, { method: "POST", headers: sharedHeaders });
           const payload = await readJsonOrText(res);
           if (!res.ok) {
-            const envMode = Boolean(item.meta?.env?.useDefault && item.meta?.env?.image);
-            const baseMsg = (payload && typeof payload === 'object' && (payload as any).error)
+            const msg = (payload && typeof payload === 'object' && (payload as any).error)
               ? String((payload as any).error)
-              : (typeof payload === 'string' && payload.trim()) ? payload.trim() : "Échec de la génération des images";
-            const suggestions = envMode
-              ? "\n\nAstuce: Google peut refuser le mode 2‑images. Vous pouvez: essayer sans environnement, modifier le prompt/style/poses, changer d’environnement, ou sélectionner manuellement OpenRouter dans Paramètres."
-              : "";
-            throw new Error(baseMsg + suggestions);
+              : (typeof payload === 'string' && payload.trim()) ? payload.trim() : "Échec de la génération";
+            throw new Error(msg);
           }
           const json = (payload && typeof payload === 'object') ? (payload as any) : {};
           const imagesAll = Array.isArray(json?.images) ? (json.images as Array<string | null | undefined>) : [];
@@ -274,21 +264,42 @@ export default function ResultatsPage() {
           setGenPoses(posesForSuccess);
           setRequestedPoses(posesOrdered);
           setGenErrors(errorsByPose);
-          // Capture server-side instructions and debug mode (available in non-production only)
-          try {
-            const instr = Array.isArray((json as any)?.instructions) ? ((json as any).instructions as string[]) : null;
-            setGenInstructions(instr);
-          } catch {}
-          try {
-            const dbg = (json as any)?.debug?.mode;
-            if (dbg === 'one-image' || dbg === 'two-images') setGenMode(dbg);
-          } catch {}
-          const images = imagesAll.filter((u): u is string => typeof u === 'string' && !!u);
-          // Dev: echo instructions to console to help debug prompts
+          try { const instr = Array.isArray(json?.instructions) ? (json.instructions as string[]) : null; setGenInstructions(instr); } catch {}
+          try { const dbg = (json as any)?.debug?.mode; if (dbg === 'one-image' || dbg === 'two-images') setGenMode(dbg); } catch {}
+          return imagesAll.filter((u): u is string => typeof u === 'string' && !!u);
+        }
+        // Legacy fallback (should be rare)
+        const res = await fetch("/api/generate-images", {
+          method: "POST",
+          headers: sharedHeaders,
+          body: JSON.stringify({ imageDataUrl: item.source, environmentImageDataUrl: envImageForRequest, options: item.meta?.options, poses: item.meta?.options?.poses }),
+        });
+        const payload = await readJsonOrText(res);
+        if (!res.ok) {
+          const envMode = Boolean(item.meta?.env?.useDefault && item.meta?.env?.image);
+          const baseMsg = (payload && typeof payload === 'object' && (payload as any).error) ? String((payload as any).error) : (typeof payload === 'string' && payload.trim()) ? payload.trim() : "Échec de la génération des images";
+          const suggestions = envMode ? "\n\nAstuce: Google peut refuser le mode 2‑images. Vous pouvez: essayer sans environnement, modifier le prompt/style/poses, changer d’environnement, ou sélectionner manuellement OpenRouter dans Paramètres." : "";
+          throw new Error(baseMsg + suggestions);
+        }
+        const json = (payload && typeof payload === 'object') ? (payload as any) : {};
+        const imagesAll = Array.isArray(json?.images) ? (json.images as Array<string | null | undefined>) : [];
+        const posesOrdered = Array.isArray(json?.poses) ? (json.poses as string[]) : null;
+        const errorsByPose = (json && typeof json === 'object' ? (json as any).errors as Record<string, string> : null) || null;
+        const posesForSuccess = posesOrdered ? imagesAll.map((img, i) => (img ? posesOrdered[i] : null)).filter(Boolean) as string[] : null;
+        setGenPoses(posesForSuccess);
+        setRequestedPoses(posesOrdered);
+        setGenErrors(errorsByPose);
+        try { const instr = Array.isArray(json?.instructions) ? (json.instructions as string[]) : null; setGenInstructions(instr); } catch {}
+        try { const dbg = (json as any)?.debug?.mode; if (dbg === 'one-image' || dbg === 'two-images') setGenMode(dbg); } catch {}
+        return imagesAll.filter((u): u is string => typeof u === 'string' && !!u);
+      })()
+        .then(async (res) => {
+          const images = res as string[];
+          // Dev echo
           try {
             if (process.env.NODE_ENV !== 'production') {
-              if (Array.isArray(json?.instructions)) console.debug('[generate-images] instructions', json.instructions);
-              if (json?.debug) console.debug('[generate-images] debug', json.debug, { options: item.meta?.options, env: item.meta?.env });
+              if (Array.isArray(genInstructions)) console.debug('[jobs] instructions', genInstructions);
+              if (genMode) console.debug('[jobs] mode', genMode);
             }
           } catch {}
           const next: Item = { ...item, results: images };

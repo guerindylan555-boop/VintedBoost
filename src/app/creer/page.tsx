@@ -289,7 +289,7 @@ export default function CreatePage() {
       if (!jobId) throw new Error("Job id manquant");
       // Persist job id for potential legacy redirect fallback
       try { sessionStorage.setItem(`vintedboost_tmp_${id}`, JSON.stringify({ ...item, jobId })); } catch {}
-      router.push(`/resultats/job/${encodeURIComponent(String(jobId))}`);
+      router.push(`/resultats/${encodeURIComponent(String(id))}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

@@ -4,10 +4,12 @@ import {
   OpenRouterChatCompletionResponse,
   OpenRouterChatMessage,
 } from "@/lib/openrouter";
+import { googleAiGenerate } from "@/lib/google-ai";
 import { normalizeImageDataUrl } from "@/lib/image";
 
-// Locked model for photo descriptions
-const TEXT_MODEL = "openai/gpt-5-mini";
+// Models
+const OPENROUTER_TEXT_MODEL = "openai/gpt-5-mini";
+const GOOGLE_TEXT_MODEL = process.env.GOOGLE_TEXT_MODEL || "gemini-2.5-flash";
 
 function safeJsonParse<T>(text: string): T | null {
   try {
@@ -103,12 +105,55 @@ export async function POST(req: NextRequest) {
     },
   ];
 
+  // Provider selection: default to Google unless explicitly overridden
+  const providerHeader = req.headers.get("x-image-provider");
+  const provider = providerHeader === "openrouter" ? "openrouter" : "google";
+
+  // Google path (default)
+  if (provider === "google") {
+    try {
+      const parts = [
+        { text: `${system}\n\n${instruction}\n\n${requiredJsonShape}\n\n${metaText}` },
+        { inline_data: { mime_type: safeImageDataUrl.split(":")[1]?.split(";")[0] || "image/jpeg", data: safeImageDataUrl.split(",")[1] } },
+      ];
+      const payload = {
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          // Bias for JSON outputs
+          response_mime_type: "application/json",
+        },
+        safetySettings: [
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
+        ],
+      } as Record<string, unknown>;
+      const data = await googleAiGenerate(GOOGLE_TEXT_MODEL, payload);
+      const content = (data as any)?.candidates?.[0]?.content;
+      const text = Array.isArray(content?.parts)
+        ? content.parts.map((p: any) => p?.text).filter((t: any) => typeof t === "string").join("\n")
+        : "";
+      const parsed = safeJsonParse<Record<string, unknown>>(String(text || ""));
+      if (!parsed) {
+        // Friendly error for policy blocks
+        return NextResponse.json(
+          { error: "Google a refusé la description (politique de sécurité). Modifiez l'image ou les options, puis réessayez." },
+          { status: 422 }
+        );
+      }
+      return NextResponse.json(parsed, { status: 200 });
+    } catch (err: unknown) {
+      // On Google errors, fall back to OpenRouter
+    }
+  }
+
+  // OpenRouter fallback / explicit selection
   const payload = {
-    model: TEXT_MODEL,
+    model: OPENROUTER_TEXT_MODEL,
     messages,
     response_format: { type: "json_object" },
   };
-
   try {
     const data = await openrouterFetch<OpenRouterChatCompletionResponse>(payload);
     const content = data?.choices?.[0]?.message?.content || "";

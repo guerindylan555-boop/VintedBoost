@@ -214,9 +214,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (imagesOut.length === 0) {
+      const friendly =
+        provider === "google"
+          ? "La génération d'image a été refusée par Google (politique de sécurité). Modifiez l'image ou les options, puis réessayez."
+          : "Aucune image reçue du fournisseur. Réessayez ou changez de modèle.";
       return NextResponse.json(
-        { error: "No image in response" },
-        { status: 502 }
+        { error: friendly },
+        { status: 422 }
       );
     }
     const payload: { images: string[]; instructions?: string[] } = {
@@ -230,10 +234,25 @@ export async function POST(req: NextRequest) {
     } catch {}
     return NextResponse.json(payload, { status: 200 });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: msg },
-      { status: 500 }
-    );
+    const raw = err instanceof Error ? err.message : String(err);
+    const lower = raw.toLowerCase();
+    // Friendlier messaging when Google blocks for policy/safety
+    if (
+      lower.includes("google ai error") ||
+      lower.includes("safety") ||
+      lower.includes("harm_category") ||
+      lower.includes("invalid_argument") ||
+      lower.includes("blocked") ||
+      lower.includes("policy")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Google a refusé la génération (contenu potentiellement interdit). Modifiez l'image ou les options, puis cliquez sur Réessayer.",
+        },
+        { status: 422 }
+      );
+    }
+    return NextResponse.json({ error: raw }, { status: 500 });
   }
 }

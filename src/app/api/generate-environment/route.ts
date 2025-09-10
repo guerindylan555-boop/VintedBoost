@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   };
 
   const prompt = (body?.prompt || "").toString().trim();
-  const kind = (body?.kind || "bedroom").toString();
+  const kind = (body?.kind || "chambre").toString();
   const count = Math.min(Math.max(Number(body?.count) || 1, 1), 1); // v1: single image
 
   if (!prompt) {

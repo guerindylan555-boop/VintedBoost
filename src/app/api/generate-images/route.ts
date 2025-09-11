@@ -7,7 +7,9 @@ import {
 import { googleAiFetch } from "@/lib/google-ai";
 import { MannequinOptions, buildInstruction, buildInstructionForPose, buildInstructionForPoseWithProvidedBackground, type Pose } from "@/lib/prompt";
 import { normalizeImageDataUrl, parseDataUrl } from "@/lib/image";
-import { fetchArrayBuffer } from "@/lib/s3";
+import { auth } from "@/lib/auth";
+import { uploadDataUrlToS3, uploadBufferToS3, fetchArrayBuffer, joinKey, extFromMime } from "@/lib/s3";
+// fetchArrayBuffer is imported above from s3 helper
 
 export const runtime = "nodejs";
 
@@ -340,6 +342,40 @@ export async function POST(req: NextRequest) {
         console.debug("[generate-images] per-pose status=", status, "inputs:", { main: a, env: b });
       }
     } catch {}
+
+    // Upload outputs to S3 if configured so we always return durable URLs
+    const s3Enabled = Boolean(process.env.AWS_S3_BUCKET);
+    if (s3Enabled) {
+      try {
+        // Optional session (do not hard-require auth in this legacy endpoint)
+        let userId = "anon";
+        try {
+          const session = await auth.api.getSession({ headers: req.headers });
+          if (session?.user?.id) userId = String(session.user.id);
+        } catch {}
+        const ts = Date.now();
+        for (let i = 0; i < imagesOut.length; i++) {
+          const u = imagesOut[i];
+          if (!u) continue;
+          try {
+            const baseKey = joinKey("users", userId, "legacy-gen", String(ts), `img-${i+1}`);
+            if (u.startsWith("data:")) {
+              const m = u.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+              const ext = extFromMime(m ? m[1] : "image/jpeg");
+              const key = `${baseKey}.${ext}`;
+              const { url } = await uploadDataUrlToS3(u, key);
+              imagesOut[i] = url;
+            } else if (u.startsWith("http://") || u.startsWith("https://")) {
+              const { buffer, contentType } = await fetchArrayBuffer(u);
+              const ext = extFromMime(contentType || "image/jpeg");
+              const key = `${baseKey}.${ext}`;
+              const { url } = await uploadBufferToS3({ key, contentType: contentType || "image/jpeg", body: buffer });
+              imagesOut[i] = url;
+            }
+          } catch {}
+        }
+      } catch {}
+    }
 
     const haveAny = imagesOut.filter(Boolean).length > 0;
     if (!haveAny) {

@@ -14,6 +14,7 @@ export default function AdminPage() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<null | { id: string; descriptionText: string; removedPersons?: boolean; saved?: boolean }>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savedDescs, setSavedDescs] = useState<Array<{ id: string; createdAt: string; source: string; descriptionText: string }>>([]);
 
   useEffect(() => {
     if (isPending) return;
@@ -37,6 +38,22 @@ export default function AdminPage() {
       }
     })();
   }, [isPending, user?.email]);
+
+  useEffect(() => {
+    // Load recent admin extracts from history
+    (async () => {
+      try {
+        const r = await fetch('/api/history', { cache: 'no-store' });
+        if (!r.ok) return;
+        const data = await r.json() as { items?: Array<{ id: string; createdAt: string; source: string; description?: any }> };
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const onlyAdminExtracts = items
+          .filter((it) => it?.description && (it.description.origin === 'admin_extract_v1' || it.description.removedPersons))
+          .map((it) => ({ id: it.id, createdAt: String(it.createdAt), source: String(it.source), descriptionText: String(it.description?.descriptionText || '') }));
+        setSavedDescs(onlyAdminExtracts);
+      } catch {}
+    })();
+  }, []);
 
   if (isPending || !user || adminLoading) {
     return <div className="mx-auto max-w-screen-md p-4">Chargement…</div>;
@@ -119,6 +136,32 @@ export default function AdminPage() {
             </div>
           ) : null}
         </div>
+      </div>
+
+      {/* Saved descriptions */}
+      <div className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
+        <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Saved background descriptions</h2>
+        {savedDescs.length === 0 ? (
+          <div className="text-sm text-gray-600 dark:text-gray-300">No saved admin descriptions yet.</div>
+        ) : (
+          <div className="grid gap-3">
+            {savedDescs.map((d) => (
+              <div key={d.id} className="rounded-md border border-gray-200 dark:border-gray-700 p-3 bg-white/60 dark:bg-gray-900/60">
+                <div className="mb-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                  <span>ID: {d.id}</span>
+                  <span>{new Date(d.createdAt).toLocaleString()}</span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="relative h-32 rounded border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-900">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={d.source} alt="source" className="h-full w-full object-contain" />
+                  </div>
+                  <pre className="whitespace-pre-wrap text-xs max-h-32 overflow-auto">{d.descriptionText}</pre>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -20,7 +20,8 @@ export function middleware(req: NextRequest) {
     pathname.startsWith("/public/") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/creer") ||
-    pathname.startsWith("/resultats")
+    pathname.startsWith("/resultats") ||
+    pathname.startsWith("/admin") // allow reaching /admin; it self-protects client-side
   ) {
     return NextResponse.next();
   }

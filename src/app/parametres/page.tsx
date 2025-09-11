@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { isAdminEmail } from "@/lib/admin";
 
 type ThemeMode = "system" | "light" | "dark";
 type ImageProvider = "google" | "openrouter";
@@ -145,9 +146,11 @@ export default function SettingsPage() {
     }
   }
 
+  const admin = isAdminEmail(user?.email);
+
   return (
     <div className="mx-auto max-w-screen-md p-4">
-      <h1 className="text-xl font-semibold uppercase tracking-widest mb-4">Paramètres</h1>
+      <h1 className="text-xl font-semibold uppercase tracking-widest mb-4">Paramètres {admin ? <span className="ml-2 align-middle rounded-md border border-brand-600 px-2 py-0.5 text-[10px] font-semibold text-brand-700 dark:text-brand-400">Admin</span> : null}</h1>
 
       <section className="mb-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
         <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Thème</h2>

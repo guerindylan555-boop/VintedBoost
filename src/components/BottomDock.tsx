@@ -9,6 +9,7 @@ export default function BottomDock() {
   const isCreer = pathname === "/creer";
   const isEnv = pathname.startsWith("/environnement");
   const isParams = pathname.startsWith("/parametres");
+  const isAdmin = pathname.startsWith("/admin");
 
   const linkClasses = (active: boolean) => [
     "flex flex-col items-center justify-center gap-1 rounded-md py-2",
@@ -28,7 +29,7 @@ export default function BottomDock() {
       aria-label="Navigation principale"
     >
       <div className="mx-auto max-w-screen-md px-4">
-        <div className="grid grid-cols-4 gap-2 py-2">
+        <div className="grid grid-cols-5 gap-2 py-2">
           <Link href="/annonces" className={linkClasses(isAnnonces)} aria-label="Mes annonces">
             <svg
               aria-hidden="true"
@@ -96,6 +97,22 @@ export default function BottomDock() {
               <path d="M12 2.5V5.5M12 18.5V21.5M2.5 12H5.5M18.5 12H21.5M4.8 4.8l2.1 2.1M17.1 17.1l2.1 2.1M4.8 19.2l2.1-2.1M17.1 6.9l2.1-2.1" />
             </svg>
             <span className={labelClasses(isParams)}>Paramètres</span>
+          </Link>
+
+          <Link href="/admin" className={linkClasses(isAdmin)} aria-label="Admin">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-6 w-6"
+            >
+              <path d="M12 2l2.39 4.84 5.34.78-3.86 3.76.91 5.32L12 14.77 6.22 16.7l.91-5.32L3.27 7.62l5.34-.78L12 2z" />
+            </svg>
+            <span className={labelClasses(isAdmin)}>Admin</span>
           </Link>
         </div>
       </div>

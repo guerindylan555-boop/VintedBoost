@@ -11,27 +11,36 @@ export const runtime = "nodejs";
 function buildPrompt(): string {
   return (
     [
-      "You are an expert product and scene analyst.",
-      "Describe the input image in exhaustive detail, but strictly avoid any mention, inference, or description of people, body parts, gender, age, or identity.",
-      "If a person is present, ignore them entirely. Focus only on non-person content (objects, garments, accessories, logos/text, materials, colors, textures, patterns, visible wear/defects, environment/background, lighting, camera angle, brand hints).",
-      "Output valid JSON only, no markdown, no commentary. Use this schema:",
+      "You are an expert SCENE and BACKGROUND analyst.",
+      "Describe ONLY the BACKGROUND environment of the input image in exhaustive detail.",
+      "STRICTLY FORBIDDEN: any mention of people, bodies, faces, pose, hands, or what anyone wears; any mention of clothing/garments/accessories/outfits; any speculation about the subject/person.",
+      "Ignore all foreground subjects. Focus exclusively on the static/background setting: architecture, surfaces, materials, textures, colors, patterns, signage or text visible in the background, environmental context (indoor/outdoor), furniture as part of background, weather, season cues, lighting (type, direction, quality), shadows/reflections, camera position/angle, depth of field, perspective lines, overall mood/ambience, cleanliness/age/wear of the environment.",
+      "Output VALID JSON ONLY (no markdown, no commentary) with this schema:",
       "{",
       "  \"title\": string,",
       "  \"descriptionText\": string,",
       "  \"attributes\": {",
-      "    \"colors\": string[],",
+      "    \"environmentType\": string | null,",
+      "    \"locationHints\": string[],",
+      "    \"architectureStyle\": string | null,",
       "    \"materials\": string[],",
+      "    \"colors\": string[],",
       "    \"patterns\": string[],",
-      "    \"logosOrText\": string[],",
-      "    \"defectsOrWear\": string[],",
-      "    \"dimensionsOrFit\": string | null,",
-      "    \"background\": string | null,",
+      "    \"backgroundObjects\": string[],",
+      "    \"backgroundTextOrSignage\": string[],",
       "    \"lighting\": string | null,",
+      "    \"shadowsAndReflections\": string | null,",
+      "    \"weatherOrSeason\": string | null,",
       "    \"cameraAngle\": string | null,",
-      "    \"brandGuesses\": string[]",
+      "    \"depthOfField\": string | null,",
+      "    \"ambience\": string | null",
       "  }",
       "}",
-      "The \"descriptionText\" must be precise, concise, and in English, with no person references.",
+      "Hard requirements for descriptionText:",
+      "- English prose, coherent paragraphs (no bullet lists).",
+      "- Minimum length: 1000 words.",
+      "- Absolutely no references to people or clothing/accessories/outfits.",
+      "- If the background is plain, expand on micro-texture, finish, lighting nuances, color casts, lens characteristics, bokeh, edges, and environmental clues.",
     ].join("\n")
   );
 }
@@ -42,6 +51,10 @@ function sanitizeNoPersons(text: string): string {
     /\b(person|people|human|woman|women|man|men|girl|boy|face|hand|hands|arm|arms|leg|legs|skin|hair|eyes|beard|model)\b/gi,
     // French (common terms)
     /\b(personne|femme|homme|visage|main|mains|bras|jambe|jambes|peau|cheveux|yeux|mod[eè]le)\b/gi,
+    // Clothing and accessories (EN)
+    /\b(clothing|clothes|garment|garments|apparel|outfit|shirt|t[- ]?shirt|tee|top|blouse|dress|skirt|pant|pants|trouser|jeans|denim|shorts?|leggings?|sock|socks|shoe|shoes|sneaker|sneakers|boot|boots|heel|heels|sandal|sandals|coat|jacket|hoodie|sweater|cardigan|jumper|pullover|vest|tracksuit|suit|tie|scarf|hat|cap|beanie|glove|gloves|belt|bag|purse|handbag|jewel(?:ry|lery)|ring|necklace|bracelet|earrings?|watch)\b/gi,
+    // Vêtements (FR)
+    /\b(v[eê]tement|v[eê]tements|habit|habits|robe|jupe|pantalon|jeans?|denim|chemise|chemisier|t[- ]?shirt|tee[- ]?shirt|haut|pull|cardigan|gilet|sweat|manteau|veste|doudoune|imperme[áa]ble|short|leggings?|chaussette|chaussettes|chaussure|chaussures|baskets?|bottes?|talons?|sandales?|echarpe|écharpe|chapeau|casquette|bonnet|gant|gants|ceinture|sac|sac à main|bijou|bijoux|bague|collier|bracelet|boucles? d['’]oreille|montre)\b/gi,
   ];
   let out = text;
   for (const r of terms) out = out.replace(r, "");

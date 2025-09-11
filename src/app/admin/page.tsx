@@ -50,7 +50,7 @@ export default function AdminPage() {
       <h1 className="text-xl font-semibold uppercase tracking-widest">Admin</h1>
       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Image tools for admins only.</p>
       <div className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
-        <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Describe image (no people)</h2>
+        <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Describe background only (no people, no clothing)</h2>
         <div className="grid gap-3">
           <div>
             <input
@@ -99,7 +99,7 @@ export default function AdminPage() {
               disabled={!imageDataUrl || running}
               className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
             >
-              {running ? "Extracting…" : "Extract description"}
+              {running ? "Extracting…" : "Extract background description (≥1000 words)"}
             </button>
             <button
               onClick={() => { setImageDataUrl(null); setResult(null); setError(null); }}

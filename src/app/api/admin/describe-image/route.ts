@@ -15,6 +15,7 @@ function buildPrompt(): string {
       "Describe ONLY the BACKGROUND environment of the input image in exhaustive detail.",
       "STRICTLY FORBIDDEN: any mention of people, bodies, faces, pose, hands, or what anyone wears; any mention of clothing/garments/accessories/outfits; any speculation about any subject/person.",
       "Ignore all foreground subjects. Focus exclusively on the static/background setting: architecture, surfaces, materials, textures, colors, patterns, signage or text visible in the background, environmental context (indoor/outdoor), furniture as part of background, weather, season cues, lighting (type, direction, quality), shadows/reflections, camera position/angle, depth of field, perspective lines, overall mood/ambience, cleanliness/age/wear of the environment.",
+      "Perspective requirement: Assume the view is SEEN IN A LARGE WALL MIRROR, as if captured via a mirror shot. Describe the background from this reflected viewpoint. You MAY describe the mirror itself (frame, edges, bevel, dust/smudges, streaks, reflection quality, slight curvature, double reflections, mounting) and optical artifacts of reflection, but DO NOT mention or imply any photographer or person.",
       "Return PLAIN ENGLISH PROSE ONLY — no lists, no markdown, no JSON, no code fences, no preambles.",
       "Minimum length: 1000 words.",
       "If the background is plain, expand on micro-texture, finish, lighting nuances, color casts, lens characteristics, bokeh, edges, and environmental clues.",

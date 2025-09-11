@@ -95,9 +95,65 @@ export default function AdminPage() {
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
+              multiple
               onChange={async (e) => {
-                const f = e.target.files?.[0];
-                if (!f) return;
+                const files = Array.from(e.target.files || []);
+                if (files.length === 0) return;
+                // If user selected more than one file here, route to bulk flow for convenience
+                if (files.length > 1) {
+                  setError(null);
+                  const selected = files.slice(0, 50);
+                  const readAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+                    const fr = new FileReader();
+                    fr.onload = () => resolve(String(fr.result));
+                    fr.onerror = () => reject(new Error("Failed to read file"));
+                    fr.readAsDataURL(file);
+                  });
+                  const items: BulkItem[] = [];
+                  for (const f of selected) {
+                    if (f.size > 8 * 1024 * 1024) {
+                      items.push({
+                        localId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                        name: f.name,
+                        size: f.size,
+                        previewUrl: "",
+                        status: "error",
+                        error: "Image too large (max 8MB)",
+                        result: null,
+                      });
+                      continue;
+                    }
+                    try {
+                      const dataUrl = await readAsDataUrl(f);
+                      items.push({
+                        localId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                        name: f.name,
+                        size: f.size,
+                        previewUrl: dataUrl,
+                        status: "queued",
+                        error: null,
+                        result: null,
+                      });
+                    } catch (err) {
+                      items.push({
+                        localId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                        name: f.name,
+                        size: f.size,
+                        previewUrl: "",
+                        status: "error",
+                        error: "Failed to read file",
+                        result: null,
+                      });
+                    }
+                  }
+                  setBulkItems(items);
+                  setImageDataUrl(null);
+                  // Scroll to the bulk section
+                  try { document.getElementById('bulk-describe')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch {}
+                  return;
+                }
+                // Single-file flow
+                const f = files[0];
                 if (f.size > 8 * 1024 * 1024) { setError("Image too large (max 8MB)"); return; }
                 setError(null);
                 const reader = new FileReader();
@@ -161,7 +217,7 @@ export default function AdminPage() {
       </div>
 
       {/* Bulk describe */}
-      <div className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
+      <div id="bulk-describe" className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
         <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Bulk describe backgrounds (up to 50 images)</h2>
         <div className="grid gap-3">
           <div>

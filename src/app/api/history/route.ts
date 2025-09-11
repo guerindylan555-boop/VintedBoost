@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { randomUUID } from "crypto";
+import { uploadDataUrlToS3, uploadBufferToS3, fetchArrayBuffer, joinKey, extFromMime } from "@/lib/s3";
 
 export const runtime = "nodejs";
 
@@ -81,6 +82,54 @@ export async function POST(req: NextRequest) {
       ? new Date(body.createdAt)
       : new Date();
 
+  // If S3 is configured, upload data URLs/http images to S3 for durability
+  let sourceUrl = body.source;
+  let resultsUrls: string[] = Array.isArray(body.results) ? [...body.results] : [];
+  const s3Enabled = Boolean(process.env.AWS_S3_BUCKET);
+  if (s3Enabled) {
+    try {
+      // Source
+      try {
+        const baseKey = joinKey('users', session.user.id, 'history', id, 'source');
+        if (sourceUrl?.startsWith('data:')) {
+          const m = sourceUrl.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+          const ext = extFromMime(m ? m[1] : 'image/jpeg');
+          const key = `${baseKey}.${ext}`;
+          const { url } = await uploadDataUrlToS3(sourceUrl, key);
+          sourceUrl = url;
+        } else if (sourceUrl?.startsWith('http://') || sourceUrl?.startsWith('https://')) {
+          const { buffer, contentType } = await fetchArrayBuffer(sourceUrl);
+          const ext = extFromMime(contentType || 'image/jpeg');
+          const key = `${baseKey}.${ext}`;
+          const { url } = await uploadBufferToS3({ key, contentType: contentType || 'image/jpeg', body: buffer });
+          sourceUrl = url;
+        }
+      } catch {}
+      // Results (cap to 10 for safety)
+      const limited = resultsUrls.slice(0, 10);
+      const uploaded = await Promise.all(limited.map(async (u, i) => {
+        try {
+          const baseKey = joinKey('users', session.user.id, 'history', id, `result-${i+1}`);
+          if (u?.startsWith('data:')) {
+            const m = u.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+            const ext = extFromMime(m ? m[1] : 'image/jpeg');
+            const key = `${baseKey}.${ext}`;
+            const { url } = await uploadDataUrlToS3(u, key);
+            return url;
+          } else if (u?.startsWith('http://') || u?.startsWith('https://')) {
+            const { buffer, contentType } = await fetchArrayBuffer(u);
+            const ext = extFromMime(contentType || 'image/jpeg');
+            const key = `${baseKey}.${ext}`;
+            const { url } = await uploadBufferToS3({ key, contentType: contentType || 'image/jpeg', body: buffer });
+            return url;
+          }
+        } catch {}
+        return u;
+      }));
+      resultsUrls = uploaded;
+    } catch {}
+  }
+
   await ensureTable();
   await query(
     `INSERT INTO history_items (id, session_id, created_at, source_image, results, description)
@@ -93,8 +142,8 @@ export async function POST(req: NextRequest) {
       id,
       session.user.id,
       created.toISOString(),
-      body.source,
-      JSON.stringify(body.results),
+      sourceUrl,
+      JSON.stringify(resultsUrls),
       body.description == null ? null : JSON.stringify(body.description),
     ]
   );

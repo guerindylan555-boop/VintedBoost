@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const origin = new URL(req.url).origin;
     const res = await fetch(`${origin}/api/jobs/${encodeURIComponent(id)}/generate`, {
       method: "POST",
-      headers: { cookie: req.headers.get("cookie") || "" },
+      headers: { cookie: req.headers.get("cookie") || "", "x-image-provider": req.headers.get("x-image-provider") || "" },
       cache: "no-store",
     });
     const data = await res.json().catch(() => ({} as any));

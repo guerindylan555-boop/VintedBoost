@@ -7,6 +7,7 @@ import {
 import { googleAiFetch } from "@/lib/google-ai";
 import { MannequinOptions, buildInstruction, buildInstructionForPose, buildInstructionForPoseWithProvidedBackground, type Pose } from "@/lib/prompt";
 import { normalizeImageDataUrl, parseDataUrl } from "@/lib/image";
+import { fetchArrayBuffer } from "@/lib/s3";
 
 export const runtime = "nodejs";
 
@@ -207,7 +208,7 @@ export async function POST(req: NextRequest) {
     }
   } catch {}
   try {
-    const buildTask = (pose: Pose, idx: number) => {
+    const buildTask = async (pose: Pose, idx: number) => {
       const variantLabel = pose;
       const instruction = isTwoImagesMode
         ? buildInstructionForPoseWithProvidedBackground(options || {}, pose, productReference, variantLabel)
@@ -251,10 +252,29 @@ export async function POST(req: NextRequest) {
         // Google path: prefer Google always unless user explicitly switches provider
         // Send environment image first (Image 1), then clothing image (Image 2), then text
         const parts: Array<Record<string, unknown>> = [];
-        if (isTwoImagesMode && safeEnvImageDataUrl && envMimeType && envBase64Data) {
-          parts.push({ inline_data: { mime_type: envMimeType, data: envBase64Data } });
+        // Helper for http URL -> inline
+        const inlineFromAny = async (input: string) => {
+          if (input.startsWith('data:')) {
+            const m = input.match(/^data:(image\/[a-zA-Z+.-]+);base64,([A-Za-z0-9+/=]+)$/);
+            if (!m) return null;
+            return { mime_type: m[1], data: m[2] } as { mime_type: string; data: string };
+          }
+          if (input.startsWith('http://') || input.startsWith('https://')) {
+            try {
+              const { buffer, contentType } = await fetchArrayBuffer(input);
+              return { mime_type: contentType || 'image/jpeg', data: buffer.toString('base64') } as { mime_type: string; data: string };
+            } catch { return null; }
+          }
+          return null;
+        };
+        if (isTwoImagesMode && safeEnvImageDataUrl) {
+          const a = await inlineFromAny(safeEnvImageDataUrl);
+          if (a) parts.push({ inline_data: a });
         }
-        parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
+        {
+          const b = await inlineFromAny(safeImageDataUrl);
+          if (b) parts.push({ inline_data: b });
+        }
         parts.push({ text: instruction });
         const payload = {
           contents: [{ role: "user", parts }],
@@ -266,19 +286,17 @@ export async function POST(req: NextRequest) {
             { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
           ],
         } as Record<string, unknown>;
-        return googleAiFetch(payload, { cache: "no-store" })
-          .then((data) => {
-            const urls = extractGoogleImageUrls(data);
-            if (urls[0]) return urls[0];
-            // If still no image but we received text, surface it as an error hint
-            try {
-              const firstText = ((data as any)?.candidates?.[0]?.content?.parts || [])
-                .map((p: any) => p?.text)
-                .filter((t: any) => typeof t === "string")[0];
-              if (firstText) throw new Error(String(firstText).slice(0, 280));
-            } catch {}
-            return null;
-          });
+        const data = await googleAiFetch(payload, { cache: "no-store" });
+        const urls = extractGoogleImageUrls(data);
+        if (urls[0]) return urls[0];
+        // If still no image but we received text, surface it as an error hint
+        try {
+          const firstText = ((data as any)?.candidates?.[0]?.content?.parts || [])
+            .map((p: any) => p?.text)
+            .filter((t: any) => typeof t === "string")[0];
+          if (firstText) throw new Error(String(firstText).slice(0, 280));
+        } catch {}
+        return null;
       }
     };
 

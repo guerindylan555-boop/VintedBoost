@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { openrouterFetch, OpenRouterChatMessage, OpenRouterChatCompletionResponse } from "@/lib/openrouter";
 import { googleAiFetch } from "@/lib/google-ai";
 import { buildInstructionForPose, buildInstructionForPoseWithProvidedBackground, buildInstructionForPoseWithBackgroundAndPerson, buildInstructionForPoseWithPersonNoBackground, type Pose } from "@/lib/prompt";
+import { fetchArrayBuffer, uploadDataUrlToS3, uploadBufferToS3, joinKey, extFromMime } from "@/lib/s3";
 
 export const runtime = "nodejs";
 
@@ -149,6 +150,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     instructionEchoes[idx] = instruction;
     const started = Date.now();
+    const s3Enabled = Boolean(process.env.AWS_S3_BUCKET);
+
+    async function maybeUploadToS3(src: string | null): Promise<string | null> {
+      if (!src) return null;
+      if (!s3Enabled) return src;
+      try {
+        const baseKey = joinKey('users', session.user.id, 'jobs', id, 'results', pose);
+        if (src.startsWith('data:')) {
+          const m = src.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+          const ext = extFromMime(m ? m[1] : 'image/jpeg');
+          const key = `${baseKey}.${ext}`;
+          const { url } = await uploadDataUrlToS3(src, key);
+          return url;
+        }
+        if (src.startsWith('http://') || src.startsWith('https://')) {
+          const { buffer, contentType } = await fetchArrayBuffer(src);
+          const ext = extFromMime(contentType || 'image/jpeg');
+          const key = `${baseKey}.${ext}`;
+          const { url } = await uploadBufferToS3({ key, contentType: contentType || 'image/jpeg', body: buffer });
+          return url;
+        }
+        return src;
+      } catch {
+        return src;
+      }
+    }
+
     if (provider === "openrouter") {
       const messages: OpenRouterChatMessage[] = [
         { role: "system", content: "Tu génères UNIQUEMENT une image correspondant aux instructions. Ne retourne pas de texte." },
@@ -167,7 +195,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       ];
       const payload = { model: getImageModel(), messages, modalities: ["image"], max_output_tokens: 0 };
       const d = await openrouterFetch<OpenRouterChatCompletionResponse>(payload, { cache: "no-store" });
-      const url = extractOpenRouterImageUrls(d)[0] || null;
+      const rawUrl = extractOpenRouterImageUrls(d)[0] || null;
+      const url = await maybeUploadToS3(rawUrl);
       const latency = Date.now() - started;
       try {
         await query(
@@ -180,16 +209,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     // Google
-    const toInline = (dataUrl: string) => {
-      const m = dataUrl.match(/^data:(image\/[a-zA-Z+.-]+);base64,([A-Za-z0-9+/=]+)$/);
-      if (!m) return null;
-      return { mime_type: m[1], data: m[2] };
+    const toInlineAny = async (input: string) => {
+      if (!input || typeof input !== 'string') return null;
+      if (input.startsWith('data:')) {
+        const m = input.match(/^data:(image\/[a-zA-Z+.-]+);base64,([A-Za-z0-9+/=]+)$/);
+        if (!m) return null;
+        return { mime_type: m[1], data: m[2] } as { mime_type: string; data: string };
+      }
+      if (input.startsWith('http://') || input.startsWith('https://')) {
+        try {
+          const { buffer, contentType } = await fetchArrayBuffer(input);
+          return { mime_type: contentType || 'image/jpeg', data: buffer.toString('base64') } as { mime_type: string; data: string };
+        } catch {
+          return null;
+        }
+      }
+      return null;
     };
     const parts: Array<Record<string, unknown>> = [];
     // Ordering matters: Env (1), Person (2), Clothing (3)
-    if (hasEnv) { const a = toInline(job.env_image); if (a) parts.push({ inline_data: a }); }
-    if (hasPerson) { const c = toInline(job.person_image); if (c) parts.push({ inline_data: c }); }
-    { const b = toInline(job.main_image); if (b) parts.push({ inline_data: b }); }
+    if (hasEnv) { const a = await toInlineAny(job.env_image); if (a) parts.push({ inline_data: a }); }
+    if (hasPerson) { const c = await toInlineAny(job.person_image); if (c) parts.push({ inline_data: c }); }
+    { const b = await toInlineAny(job.main_image); if (b) parts.push({ inline_data: b }); }
     parts.push({ text: instruction });
     const payload = {
       contents: [{ role: "user", parts }],
@@ -201,7 +242,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       ],
     } as Record<string, unknown>;
     const d = await googleAiFetch(payload, { cache: "no-store" });
-    const url = extractGoogleImageUrls(d)[0] || null;
+    const rawUrl = extractGoogleImageUrls(d)[0] || null;
+    const url = await maybeUploadToS3(rawUrl);
     const latency = Date.now() - started;
     try {
       await query(

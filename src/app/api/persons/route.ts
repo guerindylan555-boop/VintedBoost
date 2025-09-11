@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { randomUUID } from "crypto";
+import { uploadDataUrlToS3, uploadBufferToS3, fetchArrayBuffer, joinKey, extFromMime } from "@/lib/s3";
 
 export const runtime = "nodejs";
 
@@ -100,6 +101,32 @@ export async function POST(req: NextRequest) {
   await ensureTable();
   try {
     await query('BEGIN');
+    // If S3 is configured, upload image and store URL
+    let storedImage = image;
+    const s3Enabled = Boolean(process.env.AWS_S3_BUCKET);
+    if (s3Enabled) {
+      try {
+        const keyBase = joinKey('users', session.user.id, 'persons', id);
+        if (image.startsWith('data:')) {
+          const m = image.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+          const ext = extFromMime(m ? m[1] : 'image/jpeg');
+          const key = `${keyBase}.${ext}`;
+          const { url } = await uploadDataUrlToS3(image, key);
+          storedImage = url;
+        } else if (image.startsWith('http://') || image.startsWith('https://')) {
+          const ourHint = (process.env.AWS_S3_PUBLIC_BASE_URL || '') || (process.env.AWS_S3_BUCKET ? `${process.env.AWS_S3_BUCKET}.s3.amazonaws.com` : '');
+          if (!ourHint || !image.includes(ourHint)) {
+            const { buffer, contentType } = await fetchArrayBuffer(image);
+            const ext = extFromMime(contentType || 'image/jpeg');
+            const key = `${keyBase}.${ext}`;
+            const { url } = await uploadBufferToS3({ key, contentType: contentType || 'image/jpeg', body: buffer });
+            storedImage = url;
+          }
+        }
+      } catch {
+        // ignore upload errors, keep original
+      }
+    }
     await query(
       `INSERT INTO person_images (id, session_id, created_at, prompt, gender, image, meta)
        VALUES ($1, $2, NOW(), $3, $4, $5, $6::jsonb)
@@ -108,7 +135,7 @@ export async function POST(req: NextRequest) {
          gender = EXCLUDED.gender,
          image = EXCLUDED.image,
          meta = EXCLUDED.meta`,
-      [id, session.user.id, prompt, gender, image, meta == null ? null : JSON.stringify(meta)]
+      [id, session.user.id, prompt, gender, storedImage, meta == null ? null : JSON.stringify(meta)]
     );
     if (setDefault) {
       await query(

@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { auth } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { normalizeImageDataUrl } from "@/lib/image";
+import { uploadDataUrlToS3, joinKey, extFromMime } from "@/lib/s3";
 
 export const runtime = "nodejs";
 
@@ -263,8 +264,43 @@ export async function POST(req: NextRequest) {
       finalMode = envImageDataUrl ? "two" : "one";
     }
 
-  // Insert job
-    const debugJson = clientItemId ? { clientItemId, hasEnv: Boolean(envImageDataUrl), hasPerson: Boolean(personImageDataUrl), personGender: body?.personRef?.gender || null } : { hasEnv: Boolean(envImageDataUrl), hasPerson: Boolean(personImageDataUrl), personGender: body?.personRef?.gender || null };
+  // Upload images to S3 if configured, store URLs in DB to avoid base64 bloat
+    let mainImageUrl = mainImageDataUrl;
+    let envImageUrl = envImageDataUrl;
+    let personImageUrl = personImageDataUrl;
+    const s3Enabled = Boolean(process.env.AWS_S3_BUCKET);
+    if (s3Enabled) {
+      try {
+        // main image
+        if (mainImageDataUrl && mainImageDataUrl.startsWith('data:')) {
+          const m = mainImageDataUrl.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+          const ext = extFromMime(m ? m[1] : 'image/jpeg');
+          const key = joinKey('users', session.user.id, 'jobs', id, `main.${ext}`);
+          const { url } = await uploadDataUrlToS3(mainImageDataUrl, key);
+          mainImageUrl = url;
+        }
+        // env image
+        if (envImageDataUrl && envImageDataUrl.startsWith('data:')) {
+          const m = envImageDataUrl.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+          const ext = extFromMime(m ? m[1] : 'image/jpeg');
+          const key = joinKey('users', session.user.id, 'jobs', id, `env.${ext}`);
+          const { url } = await uploadDataUrlToS3(envImageDataUrl, key);
+          envImageUrl = url;
+        }
+        // person image
+        if (personImageDataUrl && personImageDataUrl.startsWith('data:')) {
+          const m = personImageDataUrl.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+          const ext = extFromMime(m ? m[1] : 'image/jpeg');
+          const key = joinKey('users', session.user.id, 'jobs', id, `person.${ext}`);
+          const { url } = await uploadDataUrlToS3(personImageDataUrl, key);
+          personImageUrl = url;
+        }
+      } catch {
+        // if upload fails, keep data URLs as a fallback
+      }
+    }
+
+    const debugJson = clientItemId ? { clientItemId, hasEnv: Boolean(envImageUrl), hasPerson: Boolean(personImageUrl), personGender: body?.personRef?.gender || null } : { hasEnv: Boolean(envImageUrl), hasPerson: Boolean(personImageUrl), personGender: body?.personRef?.gender || null };
     await query(
       `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, person_image, status, debug, client_item_id)
        VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, $10, 'created', $11::jsonb, $12)`,
@@ -276,9 +312,9 @@ export async function POST(req: NextRequest) {
         options == null ? null : JSON.stringify(options),
         product == null ? null : JSON.stringify(product),
         poses && poses.length ? poses : null,
-        mainImageDataUrl,
-        envImageDataUrl,
-        personImageDataUrl,
+        mainImageUrl,
+        envImageUrl,
+        personImageUrl,
         debugJson == null ? null : JSON.stringify(debugJson),
         clientItemId,
       ]

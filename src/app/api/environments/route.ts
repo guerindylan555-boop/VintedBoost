@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { randomUUID } from "crypto";
+import { uploadDataUrlToS3, uploadBufferToS3, fetchArrayBuffer, joinKey, extFromMime } from "@/lib/s3";
 
 export const runtime = "nodejs";
 
@@ -107,6 +108,34 @@ export async function POST(req: NextRequest) {
   // Insert/update and optionally set as default in a small transaction
   try {
     await query('BEGIN');
+    // If S3 is configured, upload image (data URL or http URL) and store the S3 URL
+    let storedImage = image;
+    const s3Enabled = Boolean(process.env.AWS_S3_BUCKET);
+    if (s3Enabled) {
+      try {
+        const keyBase = joinKey('users', session.user.id, 'environments', id);
+        if (image.startsWith('data:')) {
+          // derive extension from mime
+          const m = image.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+          const ext = extFromMime(m ? m[1] : 'image/jpeg');
+          const key = `${keyBase}.${ext}`;
+          const { url } = await uploadDataUrlToS3(image, key);
+          storedImage = url;
+        } else if (image.startsWith('http://') || image.startsWith('https://')) {
+          // Avoid re-upload if already on our bucket/CDN
+          const ourHint = (process.env.AWS_S3_PUBLIC_BASE_URL || '') || (process.env.AWS_S3_BUCKET ? `${process.env.AWS_S3_BUCKET}.s3.amazonaws.com` : '');
+          if (!ourHint || !image.includes(ourHint)) {
+            const { buffer, contentType } = await fetchArrayBuffer(image);
+            const ext = extFromMime(contentType || 'image/jpeg');
+            const key = `${keyBase}.${ext}`;
+            const { url } = await uploadBufferToS3({ key, contentType: contentType || 'image/jpeg', body: buffer });
+            storedImage = url;
+          }
+        }
+      } catch {
+        // Fallback to original if upload fails
+      }
+    }
     await query(
       `INSERT INTO environment_images (id, session_id, created_at, prompt, kind, image, meta)
        VALUES ($1, $2, NOW(), $3, $4, $5, $6::jsonb)
@@ -115,7 +144,7 @@ export async function POST(req: NextRequest) {
          kind = EXCLUDED.kind,
          image = EXCLUDED.image,
          meta = EXCLUDED.meta`,
-      [id, session.user.id, prompt, kind, image, meta == null ? null : JSON.stringify(meta)]
+      [id, session.user.id, prompt, kind, storedImage, meta == null ? null : JSON.stringify(meta)]
     );
     if (setDefault) {
       await query(

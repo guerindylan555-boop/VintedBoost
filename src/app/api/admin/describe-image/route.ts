@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { normalizeImageDataUrl, parseDataUrl } from "@/lib/image";
+import { uploadDataUrlToS3, joinKey, extFromMime } from "@/lib/s3";
 import { googleAiFetch } from "@/lib/google-ai";
 import { randomUUID } from "crypto";
 import { query } from "@/lib/db";
@@ -146,6 +147,18 @@ export async function POST(req: NextRequest) {
       removedPersons: true,
     } as Record<string, unknown>;
 
+    // If S3 is configured, store the analyzed image in S3 and save URL
+    let storedSource = safeDataUrl;
+    if (process.env.AWS_S3_BUCKET && safeDataUrl?.startsWith('data:')) {
+      try {
+        const m2 = safeDataUrl.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+        const ext = extFromMime(m2 ? m2[1] : 'image/jpeg');
+        const key = joinKey('users', session.user.id, 'admin', 'describe', `${id}.${ext}`);
+        const { url } = await uploadDataUrlToS3(safeDataUrl, key);
+        storedSource = url;
+      } catch {}
+    }
+
     try {
       await query(
         `INSERT INTO history_items (id, session_id, created_at, source_image, results, description)
@@ -154,7 +167,7 @@ export async function POST(req: NextRequest) {
            source_image = EXCLUDED.source_image,
            results = EXCLUDED.results,
            description = EXCLUDED.description`,
-        [id, session.user.id, safeDataUrl, JSON.stringify([]), JSON.stringify(description)]
+        [id, session.user.id, storedSource, JSON.stringify([]), JSON.stringify(description)]
       );
     } catch (e) {
       return NextResponse.json({ error: "Failed to save description" }, { status: 500 });

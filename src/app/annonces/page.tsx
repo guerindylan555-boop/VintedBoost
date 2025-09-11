@@ -113,14 +113,32 @@ export default function MesAnnoncesPage() {
     // Prefer unified results page by job id; try direct job id first
     try {
       const r = await fetchWithTimeout(`/api/jobs/${encodeURIComponent(id)}`, undefined, 1500);
-      if (r.ok) { router.push(`/resultats/${encodeURIComponent(id)}`); return; }
+      if (r.ok) {
+        // Seed results page snapshot to avoid re-generation
+        try {
+          const snapshot = { ...it } as Item;
+          if (Array.isArray(snapshot.results) && snapshot.results.length > 0) snapshot.status = "final";
+          sessionStorage.setItem(`vintedboost_tmp_${id}`, JSON.stringify(snapshot));
+        } catch {}
+        router.push(`/resultats/${encodeURIComponent(id)}`);
+        return;
+      }
     } catch {}
     // Try mapping from legacy client item id to latest job
     try {
       const r2 = await fetchWithTimeout(`/api/jobs/by-client/${encodeURIComponent(id)}`, undefined, 1500);
       if (r2.ok) {
         const job = await r2.json() as { id?: string };
-        if (job?.id) { router.push(`/resultats/${encodeURIComponent(String(job.id))}`); return; }
+        if (job?.id) {
+          // Seed snapshot under resolved job id
+          try {
+            const snapshot = { ...it, id: String(job.id) } as Item;
+            if (Array.isArray(snapshot.results) && snapshot.results.length > 0) snapshot.status = "final";
+            sessionStorage.setItem(`vintedboost_tmp_${job.id}`, JSON.stringify(snapshot));
+          } catch {}
+          router.push(`/resultats/${encodeURIComponent(String(job.id))}`);
+          return;
+        }
       }
     } catch {}
     // Fallback: legacy detail page

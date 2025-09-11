@@ -43,6 +43,61 @@ async function ensureJobsTable() {
   await query(`CREATE INDEX IF NOT EXISTS idx_generation_jobs_client_item ON generation_jobs(session_id, client_item_id)`);
 }
 
+// Ensure auxiliary tables exist so lookups don't fail on fresh installs
+async function ensureEnvAndPersonTables() {
+  // environments
+  await query(
+    `CREATE TABLE IF NOT EXISTS environment_images (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      prompt TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'bedroom',
+      image TEXT NOT NULL,
+      meta JSONB,
+      is_default BOOLEAN NOT NULL DEFAULT FALSE
+    );`
+  );
+  await query(`ALTER TABLE environment_images ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE`);
+  await query(
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'env_default_unique'
+       ) THEN
+         EXECUTE 'CREATE UNIQUE INDEX env_default_unique ON environment_images(session_id, kind) WHERE is_default';
+       END IF;
+     END$$;`
+  );
+  await query(`CREATE INDEX IF NOT EXISTS idx_environment_images_session_created ON environment_images(session_id, created_at DESC);`);
+
+  // persons
+  await query(
+    `CREATE TABLE IF NOT EXISTS person_images (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      gender TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      image TEXT NOT NULL,
+      meta JSONB,
+      is_default BOOLEAN NOT NULL DEFAULT FALSE
+    );`
+  );
+  await query(`ALTER TABLE person_images ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE`);
+  await query(
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'person_default_unique'
+       ) THEN
+         EXECUTE 'CREATE UNIQUE INDEX person_default_unique ON person_images(session_id, gender) WHERE is_default';
+       END IF;
+     END$$;`
+  );
+  await query(`CREATE INDEX IF NOT EXISTS idx_person_images_session_created ON person_images(session_id, created_at DESC);`);
+}
+
 function isHttpUrl(str: string): boolean {
   return typeof str === "string" && (str.startsWith("http://") || str.startsWith("https://"));
 }
@@ -73,6 +128,8 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     await ensureJobsTable();
+    // Ensure lookup tables exist so default refs can't fail on cold start
+    await ensureEnvAndPersonTables();
 
     const body = (await req.json().catch(() => ({}))) as {
       imageDataUrl?: string | null; // required
@@ -121,7 +178,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid main image" }, { status: 400 });
     }
 
-  // Resolve environment image: envRef (default) or envImage
+  // Resolve environment image: envRef (default) or envImage, fallback to most recent if no default
     let envImageDataUrl: string | null = null;
     try {
       const fromBody = (body?.envImage && typeof body.envImage === "string") ? body.envImage : null;
@@ -135,11 +192,19 @@ export async function POST(req: NextRequest) {
         const filterSql = kindLower === 'chambre'
           ? `AND (LOWER(kind) = LOWER($2) OR LOWER(kind) = 'bedroom')`
           : `AND LOWER(kind) = LOWER($2)`;
-        const { rows } = await query<{ image: string | null }>(
-          `SELECT image FROM environment_images WHERE session_id = $1 AND is_default = TRUE ${filterSql} LIMIT 1`,
+      let { rows } = await query<{ image: string | null }>(
+        `SELECT image FROM environment_images WHERE session_id = $1 AND is_default = TRUE ${filterSql} LIMIT 1`,
+        [session.user.id, kind]
+      );
+      let img = rows?.[0]?.image || null;
+      if (!img) {
+        // Fallback to most recent of this kind
+        ({ rows } = await query<{ image: string | null }>(
+          `SELECT image FROM environment_images WHERE session_id = $1 ${filterSql} ORDER BY is_default DESC, created_at DESC LIMIT 1`,
           [session.user.id, kind]
-        );
-        const img = rows?.[0]?.image || null;
+        ));
+        img = rows?.[0]?.image || null;
+      }
         if (img) {
           const coerced = await coerceToDataUrl(img);
           envImageDataUrl = await normalizeImageDataUrl(coerced);
@@ -150,7 +215,7 @@ export async function POST(req: NextRequest) {
       envImageDataUrl = null;
     }
 
-  // Resolve optional person image
+  // Resolve optional person image (explicit body > default by gender > most recent by gender)
     let personImageDataUrl: string | null = null;
     try {
       const fromBody = (body?.personImage && typeof body.personImage === "string") ? body.personImage : null;
@@ -161,17 +226,24 @@ export async function POST(req: NextRequest) {
         // Resolve from user default by gender if requested
         const gender = (body?.personRef?.gender || "").toString().toLowerCase();
         if (gender === 'femme' || gender === 'homme') {
-          try {
-            const { rows } = await query<{ image: string | null }>(
-              `SELECT image FROM person_images WHERE session_id = $1 AND is_default = TRUE AND LOWER(gender) = LOWER($2) LIMIT 1`,
+        try {
+          let { rows } = await query<{ image: string | null }>(
+            `SELECT image FROM person_images WHERE session_id = $1 AND is_default = TRUE AND LOWER(gender) = LOWER($2) LIMIT 1`,
+            [session.user.id, gender]
+          );
+          let img = rows?.[0]?.image || null;
+          if (!img) {
+            ({ rows } = await query<{ image: string | null }>(
+              `SELECT image FROM person_images WHERE session_id = $1 AND LOWER(gender) = LOWER($2) ORDER BY is_default DESC, created_at DESC LIMIT 1`,
               [session.user.id, gender]
-            );
-            const img = rows?.[0]?.image || null;
-            if (img) {
-              const coerced = await coerceToDataUrl(img);
-              personImageDataUrl = await normalizeImageDataUrl(coerced);
-            }
-          } catch {}
+            ));
+            img = rows?.[0]?.image || null;
+          }
+          if (img) {
+            const coerced = await coerceToDataUrl(img);
+            personImageDataUrl = await normalizeImageDataUrl(coerced);
+          }
+        } catch {}
         }
       }
     } catch {
@@ -192,7 +264,7 @@ export async function POST(req: NextRequest) {
     }
 
   // Insert job
-    const debugJson = clientItemId ? { clientItemId } : null;
+    const debugJson = clientItemId ? { clientItemId, hasEnv: Boolean(envImageDataUrl), hasPerson: Boolean(personImageDataUrl), personGender: body?.personRef?.gender || null } : { hasEnv: Boolean(envImageDataUrl), hasPerson: Boolean(personImageDataUrl), personGender: body?.personRef?.gender || null };
     await query(
       `INSERT INTO generation_jobs (id, session_id, requested_mode, final_mode, options, product, poses, main_image, env_image, person_image, status, debug, client_item_id)
        VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8, $9, $10, 'created', $11::jsonb, $12)`,

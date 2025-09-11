@@ -32,6 +32,9 @@ export default function AdminPage() {
   const [bulkItems, setBulkItems] = useState<BulkItem[]>([]);
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkErr, setBulkErr] = useState<string | null>(null);
+  const [promptBackground, setPromptBackground] = useState<string>("");
+  const [promptSubject, setPromptSubject] = useState<string>("");
+  const [promptPose, setPromptPose] = useState<string>("");
   const bulkStats = useMemo(() => {
     const total = bulkItems.length;
     const completed = bulkItems.filter((i) => i.status === "success" || i.status === "error").length;
@@ -62,6 +65,20 @@ export default function AdminPage() {
       }
     })();
   }, [isPending, user?.email]);
+
+  // Load/edit prompts for background/subject/pose
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/admin/prompts', { cache: 'no-store' });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (typeof d?.background === 'string') setPromptBackground(d.background);
+        if (typeof d?.subject === 'string') setPromptSubject(d.subject);
+        if (typeof d?.pose === 'string') setPromptPose(d.pose);
+      } catch {}
+    })();
+  }, []);
 
   // Saved descriptions by kind
   const [savedTab, setSavedTab] = useState<TripleKind>('background');
@@ -98,6 +115,33 @@ export default function AdminPage() {
       <div className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
         <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Describe background only (no people, no clothing)</h2>
         <div className="grid gap-3">
+          {/* Prompt editors */}
+          <div className="grid gap-3">
+            <div className="text-xs text-gray-600 dark:text-gray-300">Edit prompts (used for this session):</div>
+            <div className="grid gap-2">
+              <label className="text-xs font-medium">Background prompt</label>
+              <textarea value={promptBackground} onChange={(e) => setPromptBackground(e.target.value)} className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 text-xs min-h-24" />
+              <label className="text-xs font-medium">Subject prompt</label>
+              <textarea value={promptSubject} onChange={(e) => setPromptSubject(e.target.value)} className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 text-xs min-h-24" />
+              <label className="text-xs font-medium">Pose prompt</label>
+              <textarea value={promptPose} onChange={(e) => setPromptPose(e.target.value)} className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 text-xs min-h-24" />
+              <div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const r = await fetch('/api/admin/prompts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ background: promptBackground, subject: promptSubject, pose: promptPose }) });
+                      if (!r.ok) throw new Error('Failed to save prompts');
+                    } catch (e: any) {
+                      alert(e?.message || String(e));
+                    }
+                  }}
+                  className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+                >
+                  Save prompts
+                </button>
+              </div>
+            </div>
+          </div>
           <div>
             <input
               type="file"
@@ -311,7 +355,7 @@ export default function AdminPage() {
                       const res = await fetch("/api/admin/describe-all", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ imageDataUrl }),
+                        body: JSON.stringify({ imageDataUrl, prompts: { background: promptBackground, subject: promptSubject, pose: promptPose } }),
                           });
                           const data = await res.json().catch(() => ({}));
                           if (!res.ok) throw new Error(String(data?.error || "Failed"));

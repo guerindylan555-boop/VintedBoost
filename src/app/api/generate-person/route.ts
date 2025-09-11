@@ -1,10 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { googleAiGenerate } from "@/lib/google-ai";
+import { query } from "@/lib/db";
+import { parseDataUrl } from "@/lib/image";
+import { fetchArrayBuffer } from "@/lib/s3";
 
 export const runtime = "nodejs";
 
 function getTextModel() {
   return process.env.GOOGLE_IMAGE_MODEL || "gemini-2.5-flash-image-preview";
+}
+
+async function ensurePersonReferences() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS person_references (
+      id TEXT PRIMARY KEY,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_by TEXT,
+      gender TEXT NOT NULL,
+      image TEXT NOT NULL,
+      prompt TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE
+    );
+  `);
+  await query(`ALTER TABLE person_references ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await query(`ALTER TABLE person_references ADD COLUMN IF NOT EXISTS prompt TEXT`);
 }
 
 export async function POST(req: NextRequest) {
@@ -19,16 +38,45 @@ export async function POST(req: NextRequest) {
   const gender = genderRaw === "homme" ? "homme" : "femme";
   const count = Math.min(Math.max(Number(body?.count) || 1, 1), 1);
 
-  if (!prompt) {
-    return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
-  }
+  // Build base + optional user instruction
+  const base = gender === "homme" ? "Generate a random man keep the clothe the same" : "Generate a random woman keep the clothe the same";
+  const finalInstruction = prompt ? `${base}. ${prompt}` : base;
 
   try {
+    await ensurePersonReferences();
+    // Lookup active reference for this gender
+    const { rows } = await query<{ image: string | null; prompt: string | null }>(
+      `SELECT image, prompt FROM person_references WHERE is_active = TRUE AND LOWER(gender) = LOWER($1) ORDER BY created_at DESC LIMIT 1`,
+      [gender]
+    );
+    const refImage = rows?.[0]?.image || null;
+    const refPrompt = (rows?.[0]?.prompt || "").toString();
+    if (!refImage) {
+      return NextResponse.json({ error: `Aucune image de référence ${gender} n'est configurée par l'admin` }, { status: 409 });
+    }
+
+    // Prepare inlineData for Gemini
+    let inlineMime = "image/jpeg";
+    let inlineBase64 = "";
+    if (refImage.startsWith("data:")) {
+      const { mime, buffer } = parseDataUrl(refImage);
+      inlineMime = mime;
+      inlineBase64 = buffer.toString("base64");
+    } else {
+      const { buffer, contentType } = await fetchArrayBuffer(refImage);
+      inlineMime = contentType || "image/jpeg";
+      inlineBase64 = Buffer.from(buffer).toString("base64");
+    }
+
+    const userText = refPrompt ? `${finalInstruction}. ${refPrompt}` : finalInstruction;
     const payload = {
       contents: [
         {
           role: "user",
-          parts: [{ text: prompt }],
+          parts: [
+            { text: userText },
+            { inlineData: { mimeType: inlineMime, data: inlineBase64 } },
+          ],
         },
       ],
     } as Record<string, unknown>;

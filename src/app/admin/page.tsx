@@ -1,25 +1,40 @@
 "use client";
 
 import { authClient } from "@/lib/auth-client";
-import { isAdminEmail } from "@/lib/admin";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
   const { data: session, isPending } = authClient.useSession();
   const router = useRouter();
-
   const user = session?.user || null;
-  const isAdmin = isAdminEmail(user?.email);
+  const [adminLoading, setAdminLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    if (!isPending) {
-      if (!user) router.replace("/auth?next=/admin");
-      else if (!isAdmin) router.replace("/creer");
-    }
-  }, [isPending, user?.email, isAdmin]);
+    if (isPending) return;
+    if (!user) { router.replace("/auth?next=/admin"); return; }
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/check", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setIsAdmin(Boolean(data?.isAdmin));
+          if (!data?.isAdmin) router.replace("/creer");
+        } else {
+          setIsAdmin(false);
+          router.replace("/creer");
+        }
+      } catch {
+        setIsAdmin(false);
+        router.replace("/creer");
+      } finally {
+        setAdminLoading(false);
+      }
+    })();
+  }, [isPending, user?.email]);
 
-  if (isPending || !user) {
+  if (isPending || !user || adminLoading) {
     return <div className="mx-auto max-w-screen-md p-4">Chargement…</div>;
   }
   if (!isAdmin) {

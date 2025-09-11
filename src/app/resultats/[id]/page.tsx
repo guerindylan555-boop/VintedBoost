@@ -23,6 +23,7 @@ type Item = {
     product: { brand: string; model: string; condition?: string };
     descEnabled: boolean;
     env?: { useDefault: boolean; kind: "chambre" | "salon"; image?: string };
+    person?: { image?: string };
   };
   title?: string;
 };
@@ -92,7 +93,7 @@ export default function ResultatsPage() {
         try {
           const r = await fetch(`/api/jobs/${encodeURIComponent(String(jobId))}`);
           if (r.ok) {
-            const job = await r.json() as { main_image?: string; env_image?: string | null; options?: MannequinOptions; product?: any; status?: string; results?: any };
+            const job = await r.json() as { main_image?: string; env_image?: string | null; person_image?: string | null; options?: MannequinOptions; product?: any; status?: string; results?: any };
             if (job?.main_image) {
               const background = (job?.options as any)?.background;
               const envKindGuess = (background === 'salon' || background === 'chambre') ? background : 'chambre';
@@ -114,6 +115,7 @@ export default function ResultatsPage() {
                   product: (job.product || { brand: "", model: "" }),
                   descEnabled: false,
                   env: job.env_image ? { useDefault: true, kind: envKindGuess, image: job.env_image } : undefined,
+                  person: job.person_image ? { image: job.person_image } : undefined,
                 },
               } as Item;
             }
@@ -137,15 +139,24 @@ export default function ResultatsPage() {
   const debugData = useMemo(() => {
     if (!item || !item.source) return null as null | {
       provider: string;
-      mode: "one-image" | "two-images";
+      mode: "one-image" | "two-images" | "three-images";
       envImageUrl: string | null;
+      personImageUrl: string | null;
       mainImageUrl: string;
       poses: Pose[];
       instructionsByPose: Array<{ pose: Pose; instruction: string }>;
     };
     const provider = genProvider || (() => { try { return localStorage.getItem("imageProvider") || "google"; } catch { return "google"; } })();
-    const envImageUrl = item?.meta?.env?.useDefault ? (item?.meta?.env?.image || null) : null;
-    const mode: "one-image" | "two-images" = genMode || (envImageUrl ? "two-images" : "one-image");
+    const envImageUrl = item?.meta?.env?.image || null;
+    const personImageUrl = item?.meta?.person?.image || null;
+    const mode: "one-image" | "two-images" | "three-images" = (() => {
+      if (genMode === 'three-images') return 'three-images';
+      if (genMode === 'two-images') return 'two-images';
+      if (genMode === 'one-image') return 'one-image';
+      if (envImageUrl && personImageUrl) return 'three-images';
+      if (envImageUrl || personImageUrl) return 'two-images';
+      return 'one-image';
+    })();
     const opts = (item?.meta?.options || {}) as MannequinOptions;
     const poses: Pose[] = (() => {
       const allowed: Pose[] = ["face", "trois-quarts", "profil"];
@@ -174,6 +185,7 @@ export default function ResultatsPage() {
       provider,
       mode,
       envImageUrl,
+      personImageUrl,
       mainImageUrl: item.source,
       poses,
       instructionsByPose,
@@ -610,24 +622,30 @@ export default function ResultatsPage() {
               <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/60 p-3">
                 <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-600 dark:text-gray-300">Entrées envoyées à Gemini</div>
                 <div className="mb-2 text-xs text-gray-600 dark:text-gray-300">Mode: <span className="font-medium">{debugData.mode}</span> · Provider: <span className="font-medium">{debugData.provider}</span></div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {debugData.mode === "two-images" ? (
-                    <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-                      <div className="px-2 py-1 text-[11px] bg-gray-50 dark:bg-gray-800">Image 1 — Arrière‑plan</div>
-                      <div className="relative h-40 bg-gray-50 dark:bg-gray-900">
-                        {debugData.envImageUrl ? (
-                          <Image src={debugData.envImageUrl} alt="Arrière‑plan envoyé" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover" unoptimized />
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-                  <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div className="px-2 py-1 text-[11px] bg-gray-50 dark:bg-gray-800">{debugData.mode === "two-images" ? "Image 2" : "Image"} — Vêtement</div>
-                    <div className="relative h-40 bg-gray-50 dark:bg-gray-900">
-                      <Image src={debugData.mainImageUrl} alt="Vêtement envoyé" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-contain" unoptimized />
-                    </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {debugData.envImageUrl ? (
+                <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="px-2 py-1 text-[11px] bg-gray-50 dark:bg-gray-800">Image 1 — Arrière‑plan</div>
+                  <div className="relative h-40 bg-gray-50 dark:bg-gray-900">
+                    <Image src={debugData.envImageUrl} alt="Arrière‑plan envoyé" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" unoptimized />
                   </div>
                 </div>
+              ) : null}
+              {debugData.personImageUrl ? (
+                <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="px-2 py-1 text-[11px] bg-gray-50 dark:bg-gray-800">{debugData.envImageUrl ? "Image 2" : "Image 1"} — Modèle/Persona</div>
+                  <div className="relative h-40 bg-gray-50 dark:bg-gray-900">
+                    <Image src={debugData.personImageUrl} alt="Modèle envoyé" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" unoptimized />
+                  </div>
+                </div>
+              ) : null}
+              <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="px-2 py-1 text-[11px] bg-gray-50 dark:bg-gray-800">{debugData.envImageUrl || debugData.personImageUrl ? (debugData.envImageUrl && debugData.personImageUrl ? "Image 3" : "Image 2") : "Image"} — Vêtement</div>
+                <div className="relative h-40 bg-gray-50 dark:bg-gray-900">
+                  <Image src={debugData.mainImageUrl} alt="Vêtement envoyé" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-contain" unoptimized />
+                </div>
+              </div>
+            </div>
                 <div className="mt-3 grid gap-3">
                   {debugData.instructionsByPose.map((it) => (
                     <div key={it.pose} className="rounded-md border border-gray-200 dark:border-gray-700">

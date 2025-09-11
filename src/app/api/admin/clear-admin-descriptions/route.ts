@@ -25,6 +25,7 @@ export async function DELETE(req: NextRequest) {
        AND (
          (description->>'origin') = 'admin_extract_v1'
          OR (description ? 'removedPersons' AND description->>'removedPersons' = 'true')
+         OR (description->>'kind') IN ('background','subject','pose')
        )`,
     [session.user.id]
   );
@@ -47,6 +48,7 @@ export async function DELETE(req: NextRequest) {
        AND (
          (description->>'origin') = 'admin_extract_v1'
          OR (description ? 'removedPersons' AND description->>'removedPersons' = 'true')
+         OR (description->>'kind') IN ('background','subject','pose')
        )`,
     [session.user.id]
   );

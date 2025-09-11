@@ -29,6 +29,10 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const sessionId = session.user.id;
   await ensureTable();
+  const url = new URL(req.url);
+  const kind = (url.searchParams.get('kind') || '').toLowerCase();
+  const allowKinds = new Set(['background','subject','pose']);
+  const useKind = allowKinds.has(kind) ? (kind as 'background'|'subject'|'pose') : null;
   const { rows } = await query<{
     id: string;
     created_at: string;
@@ -36,12 +40,27 @@ export async function GET(req: NextRequest) {
     results: unknown;
     description: unknown | null;
   }>(
-    `SELECT id, created_at, source_image, results, description
-     FROM history_items
-     WHERE session_id = $1
-     ORDER BY created_at DESC
-     LIMIT 50`,
-    [sessionId]
+    useKind
+      ? `SELECT id, created_at, source_image, results, description
+         FROM history_items
+         WHERE session_id = $1
+           AND (
+             (description->>'kind') = $2
+             OR (
+               $2 = 'background' AND (
+                 (description->>'origin') = 'admin_extract_v1'
+                 OR (description ? 'removedPersons' AND description->>'removedPersons' = 'true')
+               )
+             )
+           )
+         ORDER BY created_at DESC
+         LIMIT 50`
+      : `SELECT id, created_at, source_image, results, description
+         FROM history_items
+         WHERE session_id = $1
+         ORDER BY created_at DESC
+         LIMIT 50`,
+    useKind ? [sessionId, useKind] : [sessionId]
   );
   const res = NextResponse.json({
     items: rows.map((r) => ({

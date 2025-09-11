@@ -301,7 +301,7 @@ export default function AdminPage() {
                         const item = bulkItems[myIndex] || null;
                         const imageDataUrl = (item?.previewUrl || "");
                         try {
-                          const res = await fetch("/api/admin/describe-image", {
+                      const res = await fetch("/api/admin/describe-all", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ imageDataUrl }),
@@ -310,10 +310,12 @@ export default function AdminPage() {
                           if (!res.ok) throw new Error(String(data?.error || "Failed"));
                           setBulkItems((prev) => {
                             const copy = [...prev];
+                            // For now, display background text; future UI will show all three
+                            const bg = (data?.background && typeof data.background === 'object' && 'descriptionText' in data.background) ? data.background : null;
                             copy[myIndex] = {
                               ...copy[myIndex],
                               status: "success",
-                              result: { id: String(data.id || ""), descriptionText: String(data.descriptionText || "") },
+                              result: { id: String((bg?.id ?? "") as string), descriptionText: String((bg?.descriptionText ?? "") as string) },
                             };
                             return copy;
                           });

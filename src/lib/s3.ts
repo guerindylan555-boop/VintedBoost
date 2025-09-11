@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { parseDataUrl } from "@/lib/image";
 
 const AWS_REGION = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1";
@@ -92,4 +92,46 @@ export function sanitizeKeyPart(part: string): string {
 
 export function joinKey(...parts: string[]): string {
   return parts.map(sanitizeKeyPart).filter(Boolean).join("/");
+}
+
+/**
+ * Attempt to derive the S3 object key from a public URL produced by buildPublicUrl
+ * or standard S3 virtual-hosted–style URLs.
+ */
+export function keyFromUrl(url: string): string | null {
+  try {
+    if (!url || typeof url !== "string") return null;
+    const clean = url.split("?")[0];
+    if (PUBLIC_BASE && clean.startsWith(PUBLIC_BASE + "/")) {
+      return decodeURIComponent(clean.slice(PUBLIC_BASE.length + 1));
+    }
+    const bucket = getBucket();
+    const u = new URL(clean);
+    const host = u.hostname.toLowerCase();
+    const path = decodeURIComponent(u.pathname.replace(/^\/+/, ""));
+    // https://<bucket>.s3.amazonaws.com/<key>
+    if (host === `${bucket}.s3.amazonaws.com`) return path;
+    // https://<bucket>.s3.<region>.amazonaws.com/<key>
+    if (host.endsWith(`.amazonaws.com`) && host.startsWith(`${bucket}.s3`)) return path;
+    // https://s3.amazonaws.com/<bucket>/<key>
+    if (host === `s3.amazonaws.com` && path.startsWith(`${bucket}/`)) return path.slice(bucket.length + 1);
+  } catch {}
+  return null;
+}
+
+export async function deleteObjectByKey(key: string): Promise<void> {
+  const client = getS3Client();
+  const Bucket = getBucket();
+  await client.send(new DeleteObjectCommand({ Bucket, Key: key }));
+}
+
+export async function deleteObjectByUrl(url: string): Promise<boolean> {
+  try {
+    const key = keyFromUrl(url);
+    if (!key) return false;
+    await deleteObjectByKey(key);
+    return true;
+  } catch {
+    return false;
+  }
 }

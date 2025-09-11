@@ -396,7 +396,26 @@ export default function AdminPage() {
 
       {/* Saved descriptions */}
       <div className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
-        <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Saved background descriptions</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold uppercase tracking-wide">Saved background descriptions</h2>
+          {savedDescs.length > 0 ? (
+            <button
+              onClick={async () => {
+                if (!confirm('Delete all saved admin background descriptions? This will also try to remove uploaded images.')) return;
+                try {
+                  const res = await fetch('/api/admin/clear-admin-descriptions', { method: 'DELETE' });
+                  if (!res.ok) throw new Error('Failed to clear');
+                  setSavedDescs([]);
+                } catch (err: any) {
+                  alert(err?.message || String(err));
+                }
+              }}
+              className="rounded-md border border-red-300 text-red-700 dark:border-red-700 dark:text-red-300 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              Delete all
+            </button>
+          ) : null}
+        </div>
         {savedDescs.length === 0 ? (
           <div className="text-sm text-gray-600 dark:text-gray-300">No saved admin descriptions yet.</div>
         ) : (

@@ -414,6 +414,12 @@ export default function EnvironmentPage() {
                     }
                     if (saved.length > 0) {
                       setPersons((prev) => { const next = [...saved, ...prev]; try { localStorage.setItem("vintedboost_persons", JSON.stringify(next)); } catch {}; return next; });
+                      // Fire-and-forget: describe each saved person
+                      try {
+                        for (const it of saved) {
+                          fetch(`/api/persons/${encodeURIComponent(String(it.id))}/describe`, { method: 'POST' }).catch(()=>{});
+                        }
+                      } catch {}
                     }
                   } catch (e) {
                     setError(e instanceof Error ? e.message : String(e));
@@ -450,6 +456,12 @@ export default function EnvironmentPage() {
                     }
                     if (saved.length > 0) {
                       setPersons((prev) => { const next = [...saved, ...prev]; try { localStorage.setItem("vintedboost_persons", JSON.stringify(next)); } catch {}; return next; });
+                      // Fire-and-forget: describe each saved person
+                      try {
+                        for (const it of saved) {
+                          fetch(`/api/persons/${encodeURIComponent(String(it.id))}/describe`, { method: 'POST' }).catch(()=>{});
+                        }
+                      } catch {}
                     }
                   } catch (e) {
                     setError(e instanceof Error ? e.message : String(e));

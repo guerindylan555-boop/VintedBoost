@@ -245,7 +245,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
 
   // Persist results
-  const updatedDebug = { ...(job as any)?.debug || {}, provider, mode: finalMode === "two" ? "two-images" : "one-image", instructions: instructionEchoes };
+  const updatedDebug = { ...(job as any)?.debug || {}, provider, mode: finalMode === "two" ? "two-images" : "one-image", instructions: instructionEchoes, inputs: { hasEnv: Boolean(job.env_image), hasPerson: Boolean(job.person_image), hasClothing: Boolean(job.main_image) } };
   try {
     const anyOk = images.filter(Boolean).length > 0;
     await query(

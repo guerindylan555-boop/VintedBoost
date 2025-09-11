@@ -158,6 +158,19 @@ export default function AdminPage() {
                   </div>
                   <pre className="whitespace-pre-wrap text-xs max-h-32 overflow-auto">{d.descriptionText}</pre>
                 </div>
+                <div className="mt-2 flex items-center justify-end">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/history/${encodeURIComponent(d.id)}`, { method: 'DELETE' });
+                        if (res.ok) setSavedDescs((prev) => prev.filter((x) => x.id !== d.id));
+                      } catch {}
+                    }}
+                    className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>

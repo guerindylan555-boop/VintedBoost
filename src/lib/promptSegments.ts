@@ -204,3 +204,65 @@ export function composePromptWithProvidedBackground(
     .join(" ")
     .trim();
 }
+
+// Guidance when both background (env) and a persona/model image are provided
+export function segmentProvidedBackgroundAndPerson(): string {
+  return (
+    "Image 1 = arrière‑plan (à conserver tel quel: perspective, couleurs, lumière). " +
+    "Image 2 = modèle/persona (référence morphologie, posture et orientation). " +
+    "Image 3 = vêtement (à habiller sur le modèle avec drapé réaliste, plis, occlusions, ombres portées, cohérence d'échelle et de perspective). " +
+    "Fusionner de façon photoréaliste: raccords naturels, pas d'artefacts, ombres/reflets cohérents."
+  );
+}
+
+export function composePromptWithProvidedBackgroundAndPerson(
+  args: { gender: string; size: string; pose: string; style: string },
+  productReference?: string,
+  variantLabel?: string
+): string {
+  const genderLock = args.gender.toLowerCase() === "homme" ? "Modèle: HOMME." : "Modèle: FEMME.";
+  const start =
+    `Tu reçois trois images: (Image 1) arrière‑plan; (Image 2) modèle/persona; (Image 3) vêtement. ` +
+    `${genderLock} Génère une image photoréaliste ${humanNounWithArticle(args.gender)} portant ce vêtement.`;
+  const ref = productReference ? ` Référence produit: ${productReference}.` : "";
+  const variant = variantLabel ? ` Variante: ${variantLabel}.` : "";
+  const size = segmentSize(args.size);
+  const pose = segmentPose(args.pose);
+  const guidance = segmentProvidedBackgroundAndPerson();
+  const style = args.style.toLowerCase() === "professionnel"
+    ? "Style: prise de vue professionnelle, rendu net et propre. Éclairage cohérent et ombres contrôlées."
+    : "Style: cliché smartphone authentique, exposition équilibrée, rendu naturel.";
+  return [start + ref + variant, size, pose, guidance, style]
+    .map((s) => s.trim())
+    .join(" ")
+    .trim();
+}
+
+// Guidance when a persona/model image is provided but no explicit background image
+export function segmentProvidedPersonNoBackground(background: string): string {
+  return (
+    "Image 1 = modèle/persona (référence morphologie, posture et orientation). " +
+    "Image 2 = vêtement (à habiller sur le modèle). " +
+    segmentBackground(background) + " Cohérence lumières/ombres, échelle et perspective."
+  );
+}
+
+export function composePromptWithPersonNoBackground(
+  args: { gender: string; size: string; pose: string; background: string; style: string },
+  productReference?: string,
+  variantLabel?: string
+): string {
+  const start = `Tu reçois deux images: (Image 1) modèle/persona; (Image 2) vêtement. Génère une image photoréaliste ${humanNounWithArticle(args.gender)} portant ce vêtement.`;
+  const ref = productReference ? ` Référence produit: ${productReference}.` : "";
+  const variant = variantLabel ? ` Variante: ${variantLabel}.` : "";
+  const size = segmentSize(args.size);
+  const pose = segmentPose(args.pose);
+  const env = segmentProvidedPersonNoBackground(args.background);
+  const style = segmentStyle(args.style, args.background);
+  const vinted = segmentVinted();
+  const photo = segmentPhotoTech();
+  return [start + ref + variant, size, pose, env, style, vinted, photo]
+    .map((s) => s.trim())
+    .join(" ")
+    .trim();
+}

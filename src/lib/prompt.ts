@@ -20,7 +20,7 @@ export function normalizeOptions(
   const style = (o.style || "amateur").toLowerCase();
   return { gender, size, pose, background, style };
 }
-import { composePromptSegments, composePromptWithProvidedBackground } from "./promptSegments";
+import { composePromptSegments, composePromptWithProvidedBackground, composePromptWithProvidedBackgroundAndPerson, composePromptWithPersonNoBackground } from "./promptSegments";
 
 export function buildInstruction(
   inputOpts: MannequinOptions,
@@ -60,6 +60,35 @@ export function buildInstructionForPoseWithProvidedBackground(
   const base = normalizeOptions(inputOpts);
   return composePromptWithProvidedBackground(
     { gender: base.gender, size: base.size, pose, style: base.style },
+    productReference,
+    variantLabel
+  );
+}
+
+// New helpers for 3-image and 2-image (persona + clothing) cases
+export function buildInstructionForPoseWithBackgroundAndPerson(
+  inputOpts: MannequinOptions,
+  pose: Pose,
+  productReference?: string,
+  variantLabel?: string
+): string {
+  const base = normalizeOptions(inputOpts);
+  return composePromptWithProvidedBackgroundAndPerson(
+    { gender: base.gender, size: base.size, pose, style: base.style },
+    productReference,
+    variantLabel
+  );
+}
+
+export function buildInstructionForPoseWithPersonNoBackground(
+  inputOpts: MannequinOptions,
+  pose: Pose,
+  productReference?: string,
+  variantLabel?: string
+): string {
+  const base = normalizeOptions(inputOpts);
+  return composePromptWithPersonNoBackground(
+    { gender: base.gender, size: base.size, pose, background: base.background, style: base.style },
     productReference,
     variantLabel
   );

@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { randomUUID } from "crypto";
 import { openrouterFetch, OpenRouterChatMessage, OpenRouterChatCompletionResponse } from "@/lib/openrouter";
 import { googleAiFetch } from "@/lib/google-ai";
-import { buildInstructionForPose, buildInstructionForPoseWithProvidedBackground, type Pose } from "@/lib/prompt";
+import { buildInstructionForPose, buildInstructionForPoseWithProvidedBackground, buildInstructionForPoseWithBackgroundAndPerson, buildInstructionForPoseWithPersonNoBackground, type Pose } from "@/lib/prompt";
 
 export const runtime = "nodejs";
 
@@ -134,9 +134,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const buildTask = async (pose: Pose, idx: number) => {
-    const instruction = finalMode === "two"
-      ? buildInstructionForPoseWithProvidedBackground(job.options || {}, pose, undefined, pose)
-      : buildInstructionForPose(job.options || {}, pose, undefined, pose);
+    // Decide instruction template based on available images
+    let instruction: string;
+    const hasEnv = Boolean(job.env_image);
+    const hasPerson = Boolean(job.person_image);
+    if (hasEnv && hasPerson) {
+      instruction = buildInstructionForPoseWithBackgroundAndPerson(job.options || {}, pose, undefined, pose);
+    } else if (hasEnv) {
+      instruction = buildInstructionForPoseWithProvidedBackground(job.options || {}, pose, undefined, pose);
+    } else if (hasPerson) {
+      instruction = buildInstructionForPoseWithPersonNoBackground(job.options || {}, pose, undefined, pose);
+    } else {
+      instruction = buildInstructionForPose(job.options || {}, pose, undefined, pose);
+    }
     instructionEchoes[idx] = instruction;
     const started = Date.now();
     if (provider === "openrouter") {
@@ -146,8 +156,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           role: "user",
           content: (() => {
             const parts: any[] = [];
-            if (finalMode === "two" && job.env_image) parts.push({ type: "image_url", image_url: { url: job.env_image } });
-            if (job.person_image) parts.push({ type: "image_url", image_url: { url: job.person_image } });
+            // Ordering matters: Env (1), Person (2), Clothing (3)
+            if (hasEnv) parts.push({ type: "image_url", image_url: { url: job.env_image } });
+            if (hasPerson) parts.push({ type: "image_url", image_url: { url: job.person_image } });
             parts.push({ type: "image_url", image_url: { url: job.main_image } });
             parts.push({ type: "text", text: instruction });
             return parts;
@@ -175,16 +186,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return { mime_type: m[1], data: m[2] };
     };
     const parts: Array<Record<string, unknown>> = [];
-    if (finalMode === "two" && job.env_image) {
-      const a = toInline(job.env_image);
-      if (a) parts.push({ inline_data: a });
-    }
-    if (job.person_image) {
-      const c = toInline(job.person_image);
-      if (c) parts.push({ inline_data: c });
-    }
-    const b = toInline(job.main_image);
-    if (b) parts.push({ inline_data: b });
+    // Ordering matters: Env (1), Person (2), Clothing (3)
+    if (hasEnv) { const a = toInline(job.env_image); if (a) parts.push({ inline_data: a }); }
+    if (hasPerson) { const c = toInline(job.person_image); if (c) parts.push({ inline_data: c }); }
+    { const b = toInline(job.main_image); if (b) parts.push({ inline_data: b }); }
     parts.push({ text: instruction });
     const payload = {
       contents: [{ role: "user", parts }],

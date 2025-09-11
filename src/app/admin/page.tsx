@@ -15,6 +15,7 @@ export default function AdminPage() {
   const [result, setResult] = useState<null | { id: string; descriptionText: string; removedPersons?: boolean; saved?: boolean }>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedDescs, setSavedDescs] = useState<Array<{ id: string; createdAt: string; source: string; descriptionText: string }>>([]);
+  const [s3TestImage, setS3TestImage] = useState<{ url: string; key: string } | null>(null);
 
   useEffect(() => {
     if (isPending) return;
@@ -98,6 +99,7 @@ export default function AdminPage() {
                 setRunning(true);
                 setError(null);
                 setResult(null);
+                setS3TestImage(null);
                 try {
                   const res = await fetch("/api/admin/describe-image", {
                     method: "POST",
@@ -133,6 +135,52 @@ export default function AdminPage() {
                 <button onClick={() => { try { navigator.clipboard.writeText(result.descriptionText); } catch {} }} className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm">Copy</button>
                 <span className="text-xs text-emerald-700 dark:text-emerald-300">Saved ✓ (id: {result.id})</span>
               </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* S3 upload test */}
+      <div className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
+        <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">S3/CloudFront upload test</h2>
+        <div className="grid gap-3">
+          <div className="text-xs text-gray-600 dark:text-gray-300">Choisissez une image puis cliquez sur "Tester l'upload" pour vérifier la configuration S3/CloudFront. L'URL retournée doit charger l'image.</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                if (!imageDataUrl) { setError("Sélectionnez d'abord une image en haut"); return; }
+                setRunning(true);
+                setError(null);
+                setS3TestImage(null);
+                try {
+                  const res = await fetch("/api/admin/s3-test", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ imageDataUrl }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(String(data?.error || "Upload failed"));
+                  setS3TestImage({ url: String(data.url), key: String(data.key) });
+                } catch (e: any) {
+                  setError(e?.message || String(e));
+                } finally {
+                  setRunning(false);
+                }
+              }}
+              disabled={!imageDataUrl || running}
+              className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+            >
+              {running ? "Test…" : "Tester l'upload"}
+            </button>
+            {s3TestImage ? (
+              <a href={s3TestImage.url} target="_blank" rel="noreferrer" className="text-sm text-brand-700 underline">Voir l'image</a>
+            ) : null}
+          </div>
+          {s3TestImage ? (
+            <div className="grid gap-2">
+              <div className="text-xs text-gray-600 dark:text-gray-300">URL: <a href={s3TestImage.url} target="_blank" rel="noreferrer" className="text-brand-700 underline break-all">{s3TestImage.url}</a></div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={s3TestImage.url} alt="S3 test" className="max-h-48 object-contain border border-gray-200 dark:border-gray-700 rounded" />
             </div>
           ) : null}
         </div>

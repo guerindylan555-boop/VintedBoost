@@ -17,6 +17,7 @@ export default function AdminPage() {
   const [savedDescs, setSavedDescs] = useState<Array<{ id: string; createdAt: string; source: string; descriptionText: string }>>([]);
 
   // Bulk describe state
+  type TripleKind = 'background' | 'subject' | 'pose';
   type BulkStatus = "queued" | "processing" | "success" | "error";
   type BulkItem = {
     localId: string;
@@ -25,7 +26,8 @@ export default function AdminPage() {
     previewUrl: string; // data URL
     status: BulkStatus;
     error?: string | null;
-    result?: { id: string; descriptionText: string } | null;
+    result?: { id: string; descriptionText: string } | null; // legacy single-result display
+    resultsByKind?: Partial<Record<TripleKind, { id: string; descriptionText: string } | { error: string }>>;
   };
   const [bulkItems, setBulkItems] = useState<BulkItem[]>([]);
   const [bulkRunning, setBulkRunning] = useState(false);
@@ -61,18 +63,23 @@ export default function AdminPage() {
     })();
   }, [isPending, user?.email]);
 
+  // Saved descriptions by kind
+  const [savedTab, setSavedTab] = useState<TripleKind>('background');
+  const [savedBackgrounds, setSavedBackgrounds] = useState<Array<{ id: string; createdAt: string; source: string; descriptionText: string }>>([]);
+  const [savedSubjects, setSavedSubjects] = useState<Array<{ id: string; createdAt: string; source: string; descriptionText: string }>>([]);
+  const [savedPoses, setSavedPoses] = useState<Array<{ id: string; createdAt: string; source: string; descriptionText: string }>>([]);
   useEffect(() => {
-    // Load recent admin extracts from history
     (async () => {
       try {
-        const r = await fetch('/api/history', { cache: 'no-store' });
-        if (!r.ok) return;
-        const data = await r.json() as { items?: Array<{ id: string; createdAt: string; source: string; description?: any }> };
-        const items = Array.isArray(data?.items) ? data.items : [];
-        const onlyAdminExtracts = items
-          .filter((it) => it?.description && (it.description.origin === 'admin_extract_v1' || it.description.removedPersons))
-          .map((it) => ({ id: it.id, createdAt: String(it.createdAt), source: String(it.source), descriptionText: String(it.description?.descriptionText || '') }));
-        setSavedDescs(onlyAdminExtracts);
+        const [rb, rs, rp] = await Promise.all([
+          fetch('/api/history?kind=background', { cache: 'no-store' }).then(r => r.ok ? r.json() : Promise.reject(r)).catch(() => ({ items: [] })),
+          fetch('/api/history?kind=subject', { cache: 'no-store' }).then(r => r.ok ? r.json() : Promise.reject(r)).catch(() => ({ items: [] })),
+          fetch('/api/history?kind=pose', { cache: 'no-store' }).then(r => r.ok ? r.json() : Promise.reject(r)).catch(() => ({ items: [] })),
+        ]) as Array<{ items?: Array<{ id: string; createdAt: string; source: string; description?: any }> }>;
+        const toUi = (items: any[]) => (Array.isArray(items) ? items : []).map((it) => ({ id: String(it.id), createdAt: String(it.createdAt), source: String(it.source), descriptionText: String(it.description?.descriptionText || '') }));
+        setSavedBackgrounds(toUi(rb.items || []));
+        setSavedSubjects(toUi(rs.items || []));
+        setSavedPoses(toUi(rp.items || []));
       } catch {}
     })();
   }, []);
@@ -310,13 +317,24 @@ export default function AdminPage() {
                           if (!res.ok) throw new Error(String(data?.error || "Failed"));
                           setBulkItems((prev) => {
                             const copy = [...prev];
-                            // For now, display background text; future UI will show all three
-                            const bg = (data?.background && typeof data.background === 'object' && 'descriptionText' in data.background) ? data.background : null;
+                            // Capture results by kind
+                            const byKind: Partial<Record<TripleKind, any>> = {};
+                            for (const k of ['background','subject','pose'] as TripleKind[]) {
+                              const v = (data && (data as any)[k]) || null;
+                              if (v && typeof v === 'object') {
+                                if ('descriptionText' in v) byKind[k] = { id: String(v.id || ''), descriptionText: String(v.descriptionText || '') };
+                                else if ('error' in v) byKind[k] = { error: String((v as any).error || 'Failed') };
+                              }
+                            }
+                            const anyOk = ['background','subject','pose'].some((k) => byKind[k as TripleKind] && 'descriptionText' in (byKind[k as TripleKind] as any));
                             copy[myIndex] = {
                               ...copy[myIndex],
-                              status: "success",
-                              result: { id: String((bg?.id ?? "") as string), descriptionText: String((bg?.descriptionText ?? "") as string) },
-                            };
+                              status: anyOk ? "success" : "error",
+                              error: anyOk ? null : String(data?.error || 'Failed'),
+                              resultsByKind: byKind,
+                              // keep legacy result for quick preview of background if present
+                              result: byKind.background && 'descriptionText' in (byKind.background as any) ? (byKind.background as any) : undefined,
+                            } as BulkItem;
                             return copy;
                           });
                         } catch (e: any) {
@@ -373,18 +391,34 @@ export default function AdminPage() {
                       {it.status === "error" ? (
                         <div className="text-xs text-red-700 dark:text-red-300">{it.error || "Failed"}</div>
                       ) : null}
-                      {it.status === "success" && it.result ? (
+                      {it.status === "success" && it.resultsByKind ? (
                         <div className="grid gap-2">
-                          <pre className="whitespace-pre-wrap text-xs max-h-28 overflow-auto">{it.result.descriptionText}</pre>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => { try { navigator.clipboard.writeText(it.result!.descriptionText); } catch {} }}
-                              className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-xs"
-                            >
-                              Copy
-                            </button>
-                            <span className="text-[10px] text-emerald-700 dark:text-emerald-300">Saved ✓ (id: {it.result.id})</span>
-                          </div>
+                          {(['background','subject','pose'] as TripleKind[]).map((k) => {
+                            const v = it.resultsByKind?.[k];
+                            if (!v) return null;
+                            const isErr = 'error' in (v as any);
+                            return (
+                              <div key={k} className="rounded border border-gray-200 dark:border-gray-700 p-2">
+                                <div className="mb-1 text-[11px] uppercase tracking-wide text-gray-600 dark:text-gray-300">{k}</div>
+                                {isErr ? (
+                                  <div className="text-xs text-red-700 dark:text-red-300">{(v as any).error}</div>
+                                ) : (
+                                  <>
+                                    <pre className="whitespace-pre-wrap text-xs max-h-28 overflow-auto">{(v as any).descriptionText}</pre>
+                                    <div className="mt-1 flex items-center gap-2">
+                                      <button
+                                        onClick={() => { try { navigator.clipboard.writeText((v as any).descriptionText); } catch {} }}
+                                        className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-xs"
+                                      >
+                                        Copy
+                                      </button>
+                                      <span className="text-[10px] text-emerald-700 dark:text-emerald-300">Saved ✓ (id: {(v as any).id})</span>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : null}
                     </div>
@@ -399,15 +433,15 @@ export default function AdminPage() {
       {/* Saved descriptions */}
       <div className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold uppercase tracking-wide">Saved background descriptions</h2>
-          {savedDescs.length > 0 ? (
+          <h2 className="text-base font-semibold uppercase tracking-wide">Saved admin descriptions</h2>
+          {(savedBackgrounds.length + savedSubjects.length + savedPoses.length) > 0 ? (
             <button
               onClick={async () => {
                 if (!confirm('Delete all saved admin background descriptions? This will also try to remove uploaded images.')) return;
                 try {
                   const res = await fetch('/api/admin/clear-admin-descriptions', { method: 'DELETE' });
                   if (!res.ok) throw new Error('Failed to clear');
-                  setSavedDescs([]);
+                  setSavedBackgrounds([]); setSavedSubjects([]); setSavedPoses([]);
                 } catch (err: any) {
                   alert(err?.message || String(err));
                 }
@@ -418,11 +452,23 @@ export default function AdminPage() {
             </button>
           ) : null}
         </div>
-        {savedDescs.length === 0 ? (
-          <div className="text-sm text-gray-600 dark:text-gray-300">No saved admin descriptions yet.</div>
-        ) : (
-          <div className="grid gap-3">
-            {savedDescs.map((d) => (
+        <div className="mb-2 flex items-center gap-2 text-xs">
+          {(['background','subject','pose'] as TripleKind[]).map((k) => (
+            <button
+              key={k}
+              onClick={() => setSavedTab(k)}
+              className={`rounded-md border px-2 py-1 ${savedTab === k ? 'bg-brand-600 text-white border-brand-700' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700'}`}
+            >
+              {k.charAt(0).toUpperCase() + k.slice(1)}
+            </button>
+          ))}
+        </div>
+        {(() => {
+          const current = savedTab === 'background' ? savedBackgrounds : savedTab === 'subject' ? savedSubjects : savedPoses;
+          if (current.length === 0) return (<div className="text-sm text-gray-600 dark:text-gray-300">No saved {savedTab} descriptions yet.</div>);
+          return (
+            <div className="grid gap-3">
+            {current.map((d) => (
               <div key={d.id} className="rounded-md border border-gray-200 dark:border-gray-700 p-3 bg-white/60 dark:bg-gray-900/60">
                 <div className="mb-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                   <span>ID: {d.id}</span>
@@ -440,7 +486,11 @@ export default function AdminPage() {
                     onClick={async () => {
                       try {
                         const res = await fetch(`/api/history/${encodeURIComponent(d.id)}`, { method: 'DELETE' });
-                        if (res.ok) setSavedDescs((prev) => prev.filter((x) => x.id !== d.id));
+                        if (res.ok) {
+                          if (savedTab === 'background') setSavedBackgrounds((prev) => prev.filter((x) => x.id !== d.id));
+                          if (savedTab === 'subject') setSavedSubjects((prev) => prev.filter((x) => x.id !== d.id));
+                          if (savedTab === 'pose') setSavedPoses((prev) => prev.filter((x) => x.id !== d.id));
+                        }
                       } catch {}
                     }}
                     className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
@@ -450,8 +500,9 @@ export default function AdminPage() {
                 </div>
               </div>
             ))}
-          </div>
-        )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

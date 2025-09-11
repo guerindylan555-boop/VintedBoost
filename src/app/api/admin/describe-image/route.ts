@@ -13,34 +13,11 @@ function buildPrompt(): string {
     [
       "You are an expert SCENE and BACKGROUND analyst.",
       "Describe ONLY the BACKGROUND environment of the input image in exhaustive detail.",
-      "STRICTLY FORBIDDEN: any mention of people, bodies, faces, pose, hands, or what anyone wears; any mention of clothing/garments/accessories/outfits; any speculation about the subject/person.",
+      "STRICTLY FORBIDDEN: any mention of people, bodies, faces, pose, hands, or what anyone wears; any mention of clothing/garments/accessories/outfits; any speculation about any subject/person.",
       "Ignore all foreground subjects. Focus exclusively on the static/background setting: architecture, surfaces, materials, textures, colors, patterns, signage or text visible in the background, environmental context (indoor/outdoor), furniture as part of background, weather, season cues, lighting (type, direction, quality), shadows/reflections, camera position/angle, depth of field, perspective lines, overall mood/ambience, cleanliness/age/wear of the environment.",
-      "Output VALID JSON ONLY (no markdown, no commentary) with this schema:",
-      "{",
-      "  \"title\": string,",
-      "  \"descriptionText\": string,",
-      "  \"attributes\": {",
-      "    \"environmentType\": string | null,",
-      "    \"locationHints\": string[],",
-      "    \"architectureStyle\": string | null,",
-      "    \"materials\": string[],",
-      "    \"colors\": string[],",
-      "    \"patterns\": string[],",
-      "    \"backgroundObjects\": string[],",
-      "    \"backgroundTextOrSignage\": string[],",
-      "    \"lighting\": string | null,",
-      "    \"shadowsAndReflections\": string | null,",
-      "    \"weatherOrSeason\": string | null,",
-      "    \"cameraAngle\": string | null,",
-      "    \"depthOfField\": string | null,",
-      "    \"ambience\": string | null",
-      "  }",
-      "}",
-      "Hard requirements for descriptionText:",
-      "- English prose, coherent paragraphs (no bullet lists).",
-      "- Minimum length: 1000 words.",
-      "- Absolutely no references to people or clothing/accessories/outfits.",
-      "- If the background is plain, expand on micro-texture, finish, lighting nuances, color casts, lens characteristics, bokeh, edges, and environmental clues.",
+      "Return PLAIN ENGLISH PROSE ONLY — no lists, no markdown, no JSON, no code fences, no preambles.",
+      "Minimum length: 1000 words.",
+      "If the background is plain, expand on micro-texture, finish, lighting nuances, color casts, lens characteristics, bokeh, edges, and environmental clues.",
     ].join("\n")
   );
 }
@@ -140,21 +117,10 @@ export async function POST(req: NextRequest) {
     const text = extractFirstTextPart(resp);
     if (!text) return NextResponse.json({ error: "No text response from model" }, { status: 502 });
 
-    const parsed = tryParseJson(text);
-    let title = "";
-    let descriptionText = "";
-    let attributes: Record<string, unknown> = {};
-    if (parsed && typeof parsed === "object") {
-      title = String(parsed.title || "");
-      descriptionText = String(parsed.descriptionText || "");
-      attributes = (parsed.attributes && typeof parsed.attributes === "object") ? parsed.attributes as Record<string, unknown> : {};
-    } else {
-      descriptionText = text;
-    }
+    let descriptionText = text;
 
     // Sanitize as last resort
     descriptionText = sanitizeNoPersons(descriptionText);
-    if (title) title = sanitizeNoPersons(title);
 
     // Persist into history_items (create if not exists, ensure description column)
     try {
@@ -172,9 +138,9 @@ export async function POST(req: NextRequest) {
 
     const id = randomUUID();
     const description = {
-      title: title || null,
+      title: null,
       descriptionText,
-      attributes: attributes || {},
+      attributes: {},
       origin: "admin_extract_v1",
       removedPersons: true,
     } as Record<string, unknown>;
@@ -193,7 +159,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to save description" }, { status: 500 });
     }
 
-    return NextResponse.json({ id, title, descriptionText, attributes, removedPersons: true, saved: true }, { status: 200 });
+    return NextResponse.json({ id, descriptionText, removedPersons: true, saved: true }, { status: 200 });
   } catch (err: any) {
     const msg = String(err?.message || err);
     return NextResponse.json({ error: msg }, { status: 500 });

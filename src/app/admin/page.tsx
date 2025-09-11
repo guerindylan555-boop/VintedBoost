@@ -12,7 +12,7 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<null | { id: string; title?: string; descriptionText: string; attributes?: Record<string, unknown>; removedPersons?: boolean; saved?: boolean }>(null);
+  const [result, setResult] = useState<null | { id: string; descriptionText: string; removedPersons?: boolean; saved?: boolean }>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -111,14 +111,7 @@ export default function AdminPage() {
           {error ? <div className="text-sm text-red-600 dark:text-red-400">{error}</div> : null}
           {result ? (
             <div className="mt-2 grid gap-2">
-              {result.title ? <div className="text-sm font-semibold">{result.title}</div> : null}
               <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-100">{result.descriptionText}</pre>
-              {result.attributes ? (
-                <details className="rounded-md border border-gray-200 dark:border-gray-700 p-2 text-sm">
-                  <summary className="cursor-pointer">Attributes</summary>
-                  <pre className="mt-2 whitespace-pre-wrap text-xs opacity-90">{JSON.stringify(result.attributes, null, 2)}</pre>
-                </details>
-              ) : null}
               <div className="flex items-center gap-2">
                 <button onClick={() => { try { navigator.clipboard.writeText(result.descriptionText); } catch {} }} className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm">Copy</button>
                 <span className="text-xs text-emerald-700 dark:text-emerald-300">Saved ✓ (id: {result.id})</span>

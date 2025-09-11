@@ -118,9 +118,15 @@ export async function POST(req: NextRequest) {
   const prompt = buildPrompt();
 
   try {
+    // Chat-style interaction:
+    // 1) Send the image as the first user turn
+    // 2) Send a second user turn that instructs to remove/ignore any person/clothing
+    // 3) Send a third user turn that requests the long, background-only JSON description
     const payload = {
       contents: [
-        { role: "user", parts: [ { inline_data: { mime_type: mimeType, data: base64Data } }, { text: prompt } ] },
+        { role: "user", parts: [ { inline_data: { mime_type: mimeType, data: base64Data } } ] },
+        { role: "user", parts: [ { text: "Ignore or remove any person, body, face, or clothing/accessories from consideration. We will ONLY work with the background environment of this image." } ] },
+        { role: "user", parts: [ { text: prompt } ] },
       ],
       safetySettings: [
         { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },

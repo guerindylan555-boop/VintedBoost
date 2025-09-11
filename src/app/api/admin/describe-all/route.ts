@@ -4,6 +4,7 @@ import { isAdminEmail } from "@/lib/admin";
 import { normalizeImageDataUrl, parseDataUrl } from "@/lib/image";
 import { uploadDataUrlToS3, joinKey, extFromMime } from "@/lib/s3";
 import { googleAiFetch } from "@/lib/google-ai";
+import { getDefaultPrompt, PromptKind } from "@/lib/prompts";
 import { randomUUID } from "crypto";
 import { query } from "@/lib/db";
 
@@ -20,40 +21,9 @@ function extractFirstTextPart(resp: any): string | null {
   return null;
 }
 
-function buildBackgroundPrompt(): string {
-  return [
-    "You are an expert SCENE and BACKGROUND analyst.",
-    "Describe ONLY the BACKGROUND environment of the input image in exhaustive detail.",
-    "STRICTLY FORBIDDEN: any mention of people, bodies, faces, pose, hands, or what anyone wears; any mention of clothing/garments/accessories/outfits; any speculation about any subject/person.",
-    "Ignore all foreground subjects. Focus exclusively on the static/background setting: architecture, surfaces, materials, textures, colors, patterns, signage or text visible in the background, environmental context (indoor/outdoor), furniture as part of background, weather, season cues, lighting (type, direction, quality), shadows/reflections, camera position/angle, depth of field, perspective lines, overall mood/ambience, cleanliness/age/wear of the environment.",
-    "Perspective requirement: Assume the view is SEEN IN A LARGE WALL MIRROR, as if captured via a mirror shot. Describe the background from this reflected viewpoint. You MAY describe the mirror itself and optical artifacts of reflection, but DO NOT mention or imply any photographer or person.",
-    "Return PLAIN ENGLISH PROSE ONLY — no lists, no markdown, no JSON, no code fences, no preambles.",
-    "Minimum length: 1000 words.",
-    "If the background is plain, expand on micro-texture, finish, lighting nuances, color casts, lens characteristics, bokeh, edges, and environmental clues.",
-  ].join("\n");
-}
-
-function buildSubjectPrompt(): string {
-  return [
-    "You are an expert visual analyst. Describe ONLY the visible PERSON in the image.",
-    "Cover: approximate age range, build, height impression, skin tone, hair (style, length, color), notable facial features, visible accessories, grooming, and overall vibe/style.",
-    "Avoid sensitive inferences (no identity, no private attributes). Do not speculate beyond what is visible.",
-    "If no person is present, respond with: 'No person detected.'",
-    "Return PLAIN ENGLISH PROSE ONLY — no lists, no markdown, no JSON, no code fences, no preambles.",
-    "Target length: 400–600 words.",
-  ].join("\n");
-}
-
-function buildPosePrompt(): string {
-  return [
-    "Describe ONLY the SUBJECT'S POSE and body positioning.",
-    "Include: camera viewpoint, body orientation, head tilt, gaze direction, weight distribution, limb positions, gestures, symmetry/asymmetry, balance, and stance.",
-    "Mention props or support surfaces only if needed to clarify the pose. Do not describe clothing details beyond what is needed to understand posture.",
-    "If no person is present, respond with: 'No person detected.'",
-    "Return PLAIN ENGLISH PROSE ONLY — no lists, no markdown, no JSON, no code fences, no preambles.",
-    "Target length: 300–500 words.",
-  ].join("\n");
-}
+function buildBackgroundPrompt(): string { return getDefaultPrompt("background"); }
+function buildSubjectPrompt(): string { return getDefaultPrompt("subject"); }
+function buildPosePrompt(): string { return getDefaultPrompt("pose"); }
 
 function sanitizeNoPersons(text: string): string {
   const terms = [
@@ -74,7 +44,10 @@ export async function POST(req: NextRequest) {
   const email = session.user?.email || null;
   if (!isAdminEmail(email)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = (await req.json().catch(() => null)) as { imageDataUrl?: string } | null;
+  const body = (await req.json().catch(() => null)) as {
+    imageDataUrl?: string;
+    prompts?: Partial<Record<PromptKind, string>> | null;
+  } | null;
   const imageDataUrl = body?.imageDataUrl;
   if (!imageDataUrl || typeof imageDataUrl !== "string") {
     return NextResponse.json({ error: "Missing imageDataUrl" }, { status: 400 });
@@ -110,9 +83,9 @@ export async function POST(req: NextRequest) {
     } catch {}
   }
 
-  const backgroundPrompt = buildBackgroundPrompt();
-  const subjectPrompt = buildSubjectPrompt();
-  const posePrompt = buildPosePrompt();
+  const backgroundPrompt = (body?.prompts?.background && String(body.prompts.background).trim()) || buildBackgroundPrompt();
+  const subjectPrompt = (body?.prompts?.subject && String(body.prompts.subject).trim()) || buildSubjectPrompt();
+  const posePrompt = (body?.prompts?.pose && String(body.prompts.pose).trim()) || buildPosePrompt();
 
   const payloadBase = {
     contents: [
@@ -186,12 +159,12 @@ export async function POST(req: NextRequest) {
     await query(`ALTER TABLE history_items ADD COLUMN IF NOT EXISTS description JSONB`);
   } catch {}
 
-  const saved: { background?: { id: string; descriptionText: string }; subject?: { id: string; descriptionText: string }; pose?: { id: string; descriptionText: string } } = {};
+  const saved: { background?: { id: string; descriptionText: string; prompt: string }; subject?: { id: string; descriptionText: string; prompt: string }; pose?: { id: string; descriptionText: string; prompt: string } } = {};
 
-  async function saveOne(kind: 'background'|'subject'|'pose', text: string) {
+  async function saveOne(kind: 'background'|'subject'|'pose', text: string, prompt: string) {
     const id = randomUUID();
     const origin = kind === 'background' ? 'admin_background_v1' : kind === 'subject' ? 'admin_subject_v1' : 'admin_pose_v1';
-    const description = { title: null, descriptionText: text, attributes: {}, origin, kind } as Record<string, unknown>;
+    const description = { title: null, descriptionText: text, attributes: {}, origin, kind, prompt } as Record<string, unknown>;
     await query(
       `INSERT INTO history_items (id, session_id, created_at, source_image, results, description)
        VALUES ($1, $2, NOW(), $3, $4::jsonb, $5::jsonb)
@@ -201,14 +174,14 @@ export async function POST(req: NextRequest) {
          description = EXCLUDED.description`,
       [id, session.user.id, storedSource, JSON.stringify([]), JSON.stringify(description)]
     );
-    (saved as any)[kind] = { id, descriptionText: text };
+    (saved as any)[kind] = { id, descriptionText: text, prompt };
   }
 
   try {
     const ops: Promise<void>[] = [];
-    if (bgText) ops.push(saveOne('background', bgText));
-    if (subjText) ops.push(saveOne('subject', subjText));
-    if (poseText) ops.push(saveOne('pose', poseText));
+    if (bgText) ops.push(saveOne('background', bgText, backgroundPrompt));
+    if (subjText) ops.push(saveOne('subject', subjText, subjectPrompt));
+    if (poseText) ops.push(saveOne('pose', poseText, posePrompt));
     await Promise.all(ops);
   } catch (e) {
     // continue; some may have saved already

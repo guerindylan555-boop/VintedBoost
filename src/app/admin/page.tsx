@@ -14,7 +14,7 @@ export default function AdminPage() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<null | { id: string; descriptionText: string; removedPersons?: boolean; saved?: boolean }>(null);
   const [error, setError] = useState<string | null>(null);
-  const [savedDescs, setSavedDescs] = useState<Array<{ id: string; createdAt: string; source: string; descriptionText: string }>>([]);
+  // legacy single background list was replaced by per-kind tabs below
 
   // Bulk describe state
   type TripleKind = 'background' | 'subject' | 'pose';
@@ -225,7 +225,7 @@ export default function AdminPage() {
 
       {/* Bulk describe */}
       <div id="bulk-describe" className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-4">
-        <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Bulk describe backgrounds (up to 50 images)</h2>
+        <h2 className="text-base font-semibold mb-3 uppercase tracking-wide">Bulk describe (background + subject + pose, up to 50 images)</h2>
         <div className="grid gap-3">
           <div>
             <input
@@ -479,7 +479,10 @@ export default function AdminPage() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={d.source} alt="source" className="h-full w-full object-contain" />
                   </div>
-                  <pre className="whitespace-pre-wrap text-xs max-h-32 overflow-auto">{d.descriptionText}</pre>
+                  <div className="grid gap-1">
+                    <pre className="whitespace-pre-wrap text-xs max-h-24 overflow-auto">{d.descriptionText}</pre>
+                    <div className="text-[10px] text-gray-500">Prompt available in detail view soon.</div>
+                  </div>
                 </div>
                 <div className="mt-2 flex items-center justify-end">
                   <button

@@ -4,6 +4,7 @@ from io import BytesIO
 from typing import Optional, List
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
+from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -13,7 +14,6 @@ from google import genai
 from google.genai import types as gtypes
 
 # Config
-API_KEY_ENV = "GOOGLE_API_KEY"
 MODEL_IMAGE = os.environ.get("GENAI_IMAGE_MODEL", "gemini-2.5-flash-image-preview")
 MODEL_TEXT = os.environ.get("GENAI_TEXT_MODEL", "gemini-2.5-flash")
 ALLOWED_ORIGINS = [o for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o]
@@ -31,11 +31,11 @@ if ALLOWED_ORIGINS:
         max_age=600,
     )
 
-
 def get_client() -> genai.Client:
-    api_key = os.environ.get(API_KEY_ENV)
+    # Support both env names: GOOGLE_API_KEY (SDK default) and GOOGLE_AI_API_KEY (existing project)
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GOOGLE_AI_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail=f"Missing {API_KEY_ENV} env var")
+        raise HTTPException(status_code=500, detail="Missing GOOGLE_API_KEY or GOOGLE_AI_API_KEY env var")
     return genai.Client(api_key=api_key)
 
 
@@ -150,7 +150,10 @@ def healthz():
     return {"ok": True, "model_image": MODEL_IMAGE, "model_text": MODEL_TEXT}
 
 
-@app.post("/v1/images/generate")
+api = APIRouter()
+
+
+@api.post("/images/generate")
 def generate_image(
     prompt: str = Form(...),
     image: Optional[UploadFile] = File(None),
@@ -199,7 +202,7 @@ def generate_image(
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@app.post("/v1/images/edit")
+@api.post("/images/edit")
 def edit_image(
     prompt: str = Form(...),
     image: UploadFile = File(...),
@@ -247,7 +250,7 @@ class ProductDescribeIn(BaseModel):
     hints: Optional[str] = None
 
 
-@app.post("/v1/product/describe")
+@api.post("/product/describe")
 def product_describe(
     body: ProductDescribeIn,
     client: genai.Client = Depends(get_client),
@@ -319,7 +322,7 @@ class PhotoDescribeIn(BaseModel):
     image_base64: str
 
 
-@app.post("/v1/photo/describe")
+@api.post("/photo/describe")
 def photo_describe(
     body: PhotoDescribeIn,
     client: genai.Client = Depends(get_client),
@@ -354,3 +357,8 @@ def photo_describe(
         return JSONResponse({"error": msg}, status_code=500)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# Mount router under both /v1 and /api/v1 to work with or without a reverse-proxy path prefix
+app.include_router(api, prefix="/v1")
+app.include_router(api, prefix="/api/v1")

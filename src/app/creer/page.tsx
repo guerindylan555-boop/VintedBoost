@@ -34,6 +34,25 @@ function newId(): string {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) throw new Error("Invalid data URL");
+  const mime = m[1];
+  const b64 = m[2];
+  const bin = atob(b64);
+  const len = bin.length;
+  const u8 = new Uint8Array(len);
+  for (let i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
+  return new Blob([u8], { type: mime });
+}
+
+async function toBlobFromAny(src: string): Promise<Blob> {
+  if (src.startsWith("data:")) return dataUrlToBlob(src);
+  const r = await fetch(src);
+  if (!r.ok) throw new Error("Failed to fetch image");
+  return await r.blob();
+}
+
 // Small utility to avoid UI hanging on slow API routes
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs = 5000): Promise<Response> {
   const controller = new AbortController();
@@ -296,36 +315,34 @@ export default function CreatePage() {
     // Temp handoff in case history write is slow or blocked
     try { sessionStorage.setItem(`vintedboost_tmp_${id}`, JSON.stringify(item)); } catch {}
     setCurrentItemId(id);
-    // New pipeline: create a generation job server-side, then navigate to /resultats/job/[id]
+    // New pipeline: call Python backend directly for generation to durable URL, then go to results page
     try {
-      const requestedMode: "one" | "two" | "auto" = useDefaultEnv ? "two" : "one";
-      const provider = (() => { try { return localStorage.getItem("imageProvider"); } catch { return null; } })();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (provider) headers["X-Image-Provider"] = provider;
-      const res = await fetch("/api/jobs", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          imageDataUrl: imageDataUrl,
-          requestedMode,
-          envRef: useDefaultEnv ? { kind: envKind } : null,
-          personRef: useDefaultPerson ? { gender: personGender } : null,
-          options: normalizedOptions,
-          product,
-          poses: normalizedPoses,
-          clientItemId: id,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg = (data && typeof data === 'object' && (data as any).error) ? String((data as any).error) : "Échec de la préparation du job";
+      // Build multipart form for Python API
+      const form = new FormData();
+      form.append("prompt", promptPreview);
+      form.append("return", "url");
+      // main image
+      form.append("image", await toBlobFromAny(imageDataUrl), "source.png");
+      // optional environment image
+      if (useDefaultEnv) {
+        const envImage = (selectedEnv?.image || null);
+        if (envImage) form.append("environment", await toBlobFromAny(envImage), "environment.png");
+      }
+      const apiBase = process.env.NEXT_PUBLIC_APP_URL || ""; // expect full https://api.domain
+      const endpoint = `${apiBase.replace(/\/$/, "")}/v1/images/generate`;
+      const resp = await fetch(endpoint, { method: "POST", body: form });
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => ({} as any));
+        const msg = (payload && typeof payload === 'object' && (payload as any).error) ? String((payload as any).error) : `Échec de la génération (${resp.status})`;
         throw new Error(msg);
       }
-      const jobId = (data as any)?.id as string | undefined;
-      if (!jobId) throw new Error("Job id manquant");
-      // Persist snapshot under jobId for hydration on results
-      try { sessionStorage.setItem(`vintedboost_tmp_${jobId}`, JSON.stringify({ ...item, id: jobId, jobId })); } catch {}
-      router.push(`/resultats/${encodeURIComponent(String(jobId))}`);
+      const payload = await resp.json().catch(() => ({} as any));
+      const url = (payload as any)?.url as string | undefined;
+      if (!url) throw new Error("Aucune image reçue");
+      const next: HistItem = { ...item, id, results: [url], status: "draft" } as HistItem;
+      // Persist snapshot under id for hydration on results
+      try { sessionStorage.setItem(`vintedboost_tmp_${id}`, JSON.stringify(next)); } catch {}
+      router.push(`/resultats/${encodeURIComponent(String(id))}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

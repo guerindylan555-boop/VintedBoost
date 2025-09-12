@@ -1,10 +1,10 @@
 import os
 import base64
 from io import BytesIO
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -12,11 +12,25 @@ from PIL import Image
 
 from google import genai
 from google.genai import types as gtypes
+import time
+import uuid
+
+try:
+    import boto3  # type: ignore
+    from botocore.exceptions import BotoCoreError, ClientError  # type: ignore
+except Exception:  # boto3 is optional unless S3 is used
+    boto3 = None  # type: ignore
+    BotoCoreError = ClientError = Exception  # type: ignore
 
 # Config
 MODEL_IMAGE = os.environ.get("GENAI_IMAGE_MODEL", "gemini-2.5-flash-image-preview")
 MODEL_TEXT = os.environ.get("GENAI_TEXT_MODEL", "gemini-2.5-flash")
 ALLOWED_ORIGINS = [o for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o]
+AWS_S3_BUCKET = os.environ.get("AWS_S3_BUCKET")
+AWS_REGION = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
+AWS_S3_PUBLIC = (os.environ.get("AWS_S3_PUBLIC", "").lower() in ("1", "true", "yes"))
+AWS_CLOUDFRONT_DOMAIN = os.environ.get("AWS_CLOUDFRONT_DOMAIN")
+AWS_S3_PRESIGN_TTL = int(os.environ.get("AWS_S3_PRESIGN_TTL", "86400"))  # 1 day default
 
 app = FastAPI(title="vintedboost-backend", version="0.1.0")
 
@@ -145,6 +159,52 @@ def _as_inline_part_from_base64(image_base64: str) -> gtypes.Part:
     return gtypes.Part.from_bytes(data=raw, mime_type=mime)
 
 
+def _get_s3_client():
+    if not AWS_S3_BUCKET:
+        return None
+    if boto3 is None:
+        raise HTTPException(status_code=500, detail="boto3 not installed - required for S3 uploads")
+    return boto3.client("s3", region_name=AWS_REGION)
+
+
+def _public_url_from_key(key: str) -> str:
+    if AWS_CLOUDFRONT_DOMAIN:
+        domain = AWS_CLOUDFRONT_DOMAIN.strip().rstrip("/")
+        return f"https://{domain}/{key}"
+    # Fallback to S3 regional URL
+    return f"https://{AWS_S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{key}"
+
+
+def _upload_image_bytes_and_get_url(data: bytes, content_type: str, user_id: str, kind: str) -> Tuple[str, str]:
+    s3 = _get_s3_client()
+    if s3 is None:
+        raise HTTPException(status_code=409, detail="S3 not configured (AWS_S3_BUCKET missing)")
+    ts = int(time.time())
+    uid = uuid.uuid4().hex
+    key = f"users/{user_id or 'anon'}/{kind}/{ts}/{uid}.png"
+    try:
+        put_kwargs = {
+            "Bucket": AWS_S3_BUCKET,
+            "Key": key,
+            "Body": data,
+            "ContentType": content_type,
+        }
+        if AWS_S3_PUBLIC:
+            put_kwargs["ACL"] = "public-read"
+        s3.put_object(**put_kwargs)
+        if AWS_S3_PUBLIC:
+            url = _public_url_from_key(key)
+        else:
+            url = s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": AWS_S3_BUCKET, "Key": key},
+                ExpiresIn=AWS_S3_PRESIGN_TTL,
+            )
+        return url, key
+    except (BotoCoreError, ClientError) as e:  # type: ignore
+        raise HTTPException(status_code=500, detail=f"S3 upload failed: {getattr(e, 'message', str(e))}")
+
+
 @app.get("/healthz")
 def healthz():
     return {"ok": True, "model_image": MODEL_IMAGE, "model_text": MODEL_TEXT}
@@ -180,6 +240,8 @@ def generate_image(
     image: Optional[UploadFile] = File(None),
     environment: Optional[UploadFile] = File(None),
     as_: Optional[str] = Form(None, alias="as"),
+    return_mode: Optional[str] = Form(None, alias="return"),
+    request: Request = None,
     client: genai.Client = Depends(get_client),
 ):
     try:
@@ -208,6 +270,19 @@ def generate_image(
             return JSONResponse({"error": "no image"}, status_code=422)
         if (as_ or "").lower() == "base64":
             return {"image_base64": base64.b64encode(img_bytes).decode("utf-8")}
+        # Durable URL path if requested and S3 configured
+        if (return_mode or "").lower() in ("url", "s3") and AWS_S3_BUCKET:
+            try:
+                # Best-effort user id from header, else anon
+                user_id = request.headers.get("x-user-id", "anon") if request else "anon"
+                url, key = _upload_image_bytes_and_get_url(img_bytes, "image/png", user_id, "gen")
+                return {"url": url, "key": key}
+            except HTTPException as e:
+                # Fall back to streaming if S3 not configured
+                if e.status_code == 409:
+                    pass
+                else:
+                    raise
         return StreamingResponse(BytesIO(img_bytes), media_type="image/png")
     except genai.errors.APIError as e:  # type: ignore[attr-defined]
         code = getattr(e, "code", 500) or 500
@@ -228,6 +303,8 @@ def edit_image(
     prompt: str = Form(...),
     image: UploadFile = File(...),
     as_: Optional[str] = Form(None, alias="as"),
+    return_mode: Optional[str] = Form(None, alias="return"),
+    request: Request = None,
     client: genai.Client = Depends(get_client),
 ):
     try:
@@ -244,6 +321,16 @@ def edit_image(
             return JSONResponse({"error": "no edited image"}, status_code=422)
         if (as_ or "").lower() == "base64":
             return {"image_base64": base64.b64encode(img_bytes).decode("utf-8")}
+        if (return_mode or "").lower() in ("url", "s3") and AWS_S3_BUCKET:
+            try:
+                user_id = request.headers.get("x-user-id", "anon") if request else "anon"
+                url, key = _upload_image_bytes_and_get_url(img_bytes, "image/png", user_id, "edit")
+                return {"url": url, "key": key}
+            except HTTPException as e:
+                if e.status_code == 409:
+                    pass
+                else:
+                    raise
         return StreamingResponse(BytesIO(img_bytes), media_type="image/png")
     except genai.errors.APIError as e:  # type: ignore[attr-defined]
         code = getattr(e, "code", 500) or 500

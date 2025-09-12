@@ -41,6 +41,11 @@ docker build -t vintedboost-backend -f backend/Dockerfile backend
 docker run --rm -p 8080:8080 \
   -e GOOGLE_API_KEY=$GOOGLE_API_KEY \
   -e ALLOWED_ORIGINS=$ALLOWED_ORIGINS \
+  -e AWS_S3_BUCKET=$AWS_S3_BUCKET \
+  -e AWS_REGION=$AWS_REGION \
+  -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+  -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+  -e AWS_S3_PUBLIC=1 \
   vintedboost-backend
 ```
 
@@ -48,3 +53,4 @@ Dockploy hints
 - Container Port: 8080
 - Env: set GOOGLE_AI_API_KEY (or GOOGLE_API_KEY). The app accepts either.
 - If your external path is /api, either enable strip-path or call /api/v1/* (both are mounted).
+- For durable URLs, set AWS_S3_BUCKET (+ AWS creds). Response supports form field `return=url`.

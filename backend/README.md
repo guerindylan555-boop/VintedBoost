@@ -36,7 +36,8 @@ Docker
 Build and run locally:
 
 ```bash
-docker build -t vintedboost-backend -f backend/Dockerfile .
+# Build from backend/ as context
+docker build -t vintedboost-backend -f backend/Dockerfile backend
 docker run --rm -p 8080:8080 \
   -e GOOGLE_API_KEY=$GOOGLE_API_KEY \
   -e ALLOWED_ORIGINS=$ALLOWED_ORIGINS \

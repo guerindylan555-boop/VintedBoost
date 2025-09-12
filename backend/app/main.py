@@ -150,6 +150,27 @@ def healthz():
     return {"ok": True, "model_image": MODEL_IMAGE, "model_text": MODEL_TEXT}
 
 
+@app.get("/health")
+def health():
+    return healthz()
+
+
+@app.get("/")
+def root():
+    # Simple root endpoint for quick checks
+    return {"ok": True, "service": "vintedboost-backend"}
+
+
+@app.get("/api/health")
+def api_health():
+    return healthz()
+
+
+@app.get("/api/healthz")
+def api_healthz():
+    return healthz()
+
+
 api = APIRouter()
 
 
